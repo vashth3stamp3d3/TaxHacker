@@ -9,7 +9,7 @@ export const settingsFormSchema = z.object({
   openai_api_key: z.string().optional(),
   openai_model_name: z.string().default('gpt-4o-mini'),
   google_api_key: z.string().optional(),
-  google_model_name: z.string().default("gemini-3.1-pro"),
+  google_model_name: z.string().default("gemini-3.1-pro-preview"),
   mistral_api_key: z.string().optional(),
   mistral_model_name: z.string().default("mistral-medium-latest"),
   openai_compatible_api_key: z.string().optional(),

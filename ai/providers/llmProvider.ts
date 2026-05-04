@@ -29,7 +29,7 @@ export interface LLMResponse {
   error?: string
 }
 
-const GEMINI_THINKING_MODEL = "gemini-3.1-pro"
+const GEMINI_THINKING_MODEL = "gemini-3.1-pro-preview"
 
 function hasDocumentAttachment(req: LLMRequest) {
   return Boolean(req.attachments?.length)
