@@ -30,7 +30,7 @@ export interface LLMResponse {
   error?: string
 }
 
-const GEMINI_THINKING_MODEL = "gemini-3.1-pro-preview"
+const GEMINI_DOCUMENT_MODEL = "gemini-2.5-flash"
 
 function hasDocumentAttachment(req: LLMRequest) {
   return Boolean(req.attachments?.length)
@@ -139,7 +139,7 @@ export async function requestLLM(settings: LLMSettings, req: LLMRequest): Promis
   const providers = isDocumentAnalysis
     ? settings.providers
         .filter((config) => config.provider === "google")
-        .map((config) => ({ ...config, model: GEMINI_THINKING_MODEL }))
+        .map((config) => ({ ...config, model: GEMINI_DOCUMENT_MODEL }))
     : settings.providers
 
   const failures: string[] = []
@@ -205,7 +205,7 @@ export async function requestLLM(settings: LLMSettings, req: LLMRequest): Promis
 
   const fallbackError = isDocumentAnalysis
     ? failures.some((failure) => failure.includes("missing API key"))
-      ? `Document analysis requires a configured Google API key. Add one in Settings > AI and use the ${GEMINI_THINKING_MODEL} thinking model.`
+      ? `Document analysis requires a configured Google API key. Add one in Settings > AI and use the ${GEMINI_DOCUMENT_MODEL} model.`
       : `Google Gemini document analysis failed. Check Railway logs for llm.provider.error. Last error: ${failures.at(-1) || "No Google provider was selected."}`
     : "All LLM providers failed or are not configured"
 

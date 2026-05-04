@@ -7,7 +7,7 @@ import config from "@/lib/config"
 export type SettingsMap = Record<string, string>
 
 function normalizeGoogleModel(model: string | undefined) {
-  return model === "gemini-3.1-pro" ? "gemini-3.1-pro-preview" : model
+  return model === "gemini-3.1-pro" || model === "gemini-3.1-pro-preview" ? "gemini-2.5-flash" : model
 }
 
 /**

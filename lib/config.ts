@@ -7,7 +7,7 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL_NAME: z.string().default("gpt-4o-mini"),
   GOOGLE_API_KEY: z.string().optional(),
-  GOOGLE_MODEL_NAME: z.string().default("gemini-3.1-pro-preview"),
+  GOOGLE_MODEL_NAME: z.string().default("gemini-2.5-flash"),
   MISTRAL_API_KEY: z.string().optional(),
   MISTRAL_MODEL_NAME: z.string().default("mistral-medium-latest"),
   BETTER_AUTH_SECRET: z
