@@ -9,13 +9,13 @@ export async function POST(request: NextRequest) {
   const redirectPath = isSafePortalRedirect(nextPath) ? nextPath : "/dashboard"
 
   if (!config.portal.password || password !== config.portal.password) {
-    const retryUrl = new URL("/portal", request.url)
+    const retryUrl = new URL("/portal", config.app.baseURL)
     retryUrl.searchParams.set("error", "1")
     retryUrl.searchParams.set("next", redirectPath)
     return NextResponse.redirect(retryUrl, { status: 303 })
   }
 
-  const response = NextResponse.redirect(new URL(redirectPath, request.url), { status: 303 })
+  const response = NextResponse.redirect(new URL(redirectPath, config.app.baseURL), { status: 303 })
   response.cookies.set({
     name: config.portal.cookieName,
     value: await createPortalToken(config.portal.password, config.portal.cookieSecret),

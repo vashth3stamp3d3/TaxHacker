@@ -11,7 +11,7 @@ export default async function middleware(request: NextRequest) {
     const currentToken = request.cookies.get(globalConfig.portal.cookieName)?.value
 
     if (!isPortalRoute && currentToken !== expectedToken) {
-      const portalUrl = new URL("/portal", request.url)
+      const portalUrl = new URL("/portal", globalConfig.app.baseURL)
       portalUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`)
       return NextResponse.redirect(portalUrl)
     }
