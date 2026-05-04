@@ -2,6 +2,7 @@ import { ChatOpenAI } from "@langchain/openai"
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai"
 import { ChatMistralAI } from "@langchain/mistralai"
 import { BaseMessage, HumanMessage } from "@langchain/core/messages"
+import { logError, logInfo, logWarn } from "@/lib/logger"
 
 export type LLMProvider = "openai" | "google" | "mistral" | "openai_compatible"
 
@@ -134,37 +135,90 @@ async function requestLLMUnified(config: LLMConfig, req: LLMRequest): Promise<LL
 }
 
 export async function requestLLM(settings: LLMSettings, req: LLMRequest): Promise<LLMResponse> {
-  const providers = hasDocumentAttachment(req)
+  const isDocumentAnalysis = hasDocumentAttachment(req)
+  const providers = isDocumentAnalysis
     ? settings.providers
         .filter((config) => config.provider === "google")
-        .map((config) => ({ ...config, model: config.model || GEMINI_THINKING_MODEL }))
+        .map((config) => ({ ...config, model: GEMINI_THINKING_MODEL }))
     : settings.providers
+
+  const failures: string[] = []
+
+  logInfo("llm.request.start", {
+    documentAnalysis: isDocumentAnalysis,
+    attachmentCount: req.attachments?.length || 0,
+    configuredProviders: settings.providers.map((config) => ({
+      provider: config.provider,
+      hasApiKey: Boolean(config.apiKey),
+      hasBaseUrl: Boolean(config.baseUrl),
+      model: config.model || null,
+    })),
+    selectedProviders: providers.map((config) => ({
+      provider: config.provider,
+      hasApiKey: Boolean(config.apiKey),
+      hasBaseUrl: Boolean(config.baseUrl),
+      model: config.model || null,
+    })),
+  })
 
   for (const config of providers) {
     if (!config.model) {
-      console.info("Skipping provider:", config.provider, "(no model)")
+      failures.push(`${config.provider}: missing model`)
+      logWarn("llm.provider.skip", { provider: config.provider, reason: "missing_model" })
       continue
     }
     if (config.provider === "openai_compatible" ? !config.baseUrl : !config.apiKey) {
-      console.info("Skipping provider:", config.provider, "(not configured)")
+      failures.push(`${config.provider}: missing ${config.provider === "openai_compatible" ? "base URL" : "API key"}`)
+      logWarn("llm.provider.skip", {
+        provider: config.provider,
+        model: config.model,
+        reason: config.provider === "openai_compatible" ? "missing_base_url" : "missing_api_key",
+      })
       continue
     }
-    console.info("Use provider:", config.provider)
+    logInfo("llm.provider.use", {
+      provider: config.provider,
+      model: config.model,
+      documentAnalysis: isDocumentAnalysis,
+      attachmentTypes: req.attachments?.map((attachment) => attachment.contentType) || [],
+    })
 
     const response = await requestLLMUnified(config, req)
 
     if (!response.error) {
+      logInfo("llm.provider.success", {
+        provider: config.provider,
+        model: config.model,
+        documentAnalysis: isDocumentAnalysis,
+      })
       return response
     } else {
-      console.error(response.error)
+      failures.push(`${config.provider}/${config.model}: ${response.error}`)
+      logError("llm.provider.error", {
+        provider: config.provider,
+        model: config.model,
+        documentAnalysis: isDocumentAnalysis,
+        error: response.error,
+      })
     }
   }
+
+  const fallbackError = isDocumentAnalysis
+    ? failures.some((failure) => failure.includes("missing API key"))
+      ? `Document analysis requires a configured Google API key. Add one in Settings > AI and use the ${GEMINI_THINKING_MODEL} thinking model.`
+      : `Google Gemini document analysis failed. Check Railway logs for llm.provider.error. Last error: ${failures.at(-1) || "No Google provider was selected."}`
+    : "All LLM providers failed or are not configured"
+
+  logError("llm.request.failed", {
+    documentAnalysis: isDocumentAnalysis,
+    providerCount: providers.length,
+    failures,
+    userFacingError: fallbackError,
+  })
 
   return {
     output: {},
     provider: providers[0]?.provider || settings.providers[0]?.provider || "openai",
-    error: hasDocumentAttachment(req)
-      ? `Document analysis requires a configured Google API key. Add one in Settings > AI and use the ${GEMINI_THINKING_MODEL} thinking model.`
-      : "All LLM providers failed or are not configured",
+    error: fallbackError,
   }
 }

@@ -32,6 +32,7 @@ import { randomUUID } from "crypto"
 import { mkdir, readFile, rename, writeFile } from "fs/promises"
 import { revalidatePath } from "next/cache"
 import path from "path"
+import { errorMessage, logError, logInfo } from "@/lib/logger"
 
 export async function analyzeFileAction(
   file: File,
@@ -70,9 +71,21 @@ export async function analyzeFileAction(
   let attachments: AnalyzeAttachment[] = []
   try {
     attachments = await loadAttachmentsForAI(user, file)
+    logInfo("analysis.attachments.loaded", {
+      fileId: file.id,
+      filename: file.filename,
+      fileMimeType: file.mimetype,
+      attachmentCount: attachments.length,
+      attachmentTypes: attachments.map((attachment) => attachment.contentType),
+    })
   } catch (error) {
-    console.error("Failed to retrieve files:", error)
-    return { success: false, error: "Failed to retrieve files: " + error }
+    logError("analysis.attachments.error", {
+      fileId: file.id,
+      filename: file.filename,
+      fileMimeType: file.mimetype,
+      error: errorMessage(error),
+    })
+    return { success: false, error: "Failed to retrieve files: " + errorMessage(error) }
   }
 
   const prompt = `${buildLLMPrompt(
@@ -88,7 +101,12 @@ ${buildAccountingContext({ accounts, taxCodes, paymentMethods })}`
 
   const results = await analyzeTransaction(prompt, schema, attachments, file.id, user.id)
 
-  console.log("Analysis results:", results)
+  logInfo("analysis.result", {
+    fileId: file.id,
+    success: results.success,
+    hasData: Boolean(results.data),
+    error: results.success ? undefined : results.error,
+  })
 
   if (results.data?.tokensUsed && results.data.tokensUsed > 0) {
     await updateUser(user.id, { aiBalance: { decrement: 1 } })

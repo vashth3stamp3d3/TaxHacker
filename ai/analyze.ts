@@ -5,6 +5,7 @@ import { updateFile } from "@/models/files"
 import { getLLMSettings, getSettings } from "@/models/settings"
 import { AnalyzeAttachment } from "./attachments"
 import { requestLLM } from "./providers/llmProvider"
+import { errorMessage, logError, logInfo } from "@/lib/logger"
 
 export type AnalysisResult = {
   output: Record<string, string>
@@ -21,6 +22,17 @@ export async function analyzeTransaction(
   const settings = await getSettings(userId)
   const llmSettings = getLLMSettings(settings)
 
+  logInfo("analysis.llm.settings", {
+    fileId,
+    attachmentCount: attachments.length,
+    providers: llmSettings.providers.map((provider) => ({
+      provider: provider.provider,
+      model: provider.model || null,
+      hasApiKey: Boolean(provider.apiKey),
+      hasBaseUrl: Boolean(provider.baseUrl),
+    })),
+  })
+
   try {
     const response = await requestLLM(llmSettings, {
       prompt,
@@ -35,8 +47,12 @@ export async function analyzeTransaction(
     const result = response.output
     const tokensUsed = response.tokensUsed || 0
 
-    console.log("LLM response:", result)
-    console.log("LLM tokens used:", tokensUsed)
+    logInfo("analysis.llm.success", {
+      fileId,
+      provider: response.provider,
+      tokensUsed,
+      outputKeys: Object.keys(result),
+    })
 
     await updateFile(fileId, userId, { cachedParseResult: result })
 
@@ -48,7 +64,10 @@ export async function analyzeTransaction(
       },
     }
   } catch (error) {
-    console.error("AI Analysis error:", error)
+    logError("analysis.llm.error", {
+      fileId,
+      error: errorMessage(error),
+    })
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to analyze invoice",

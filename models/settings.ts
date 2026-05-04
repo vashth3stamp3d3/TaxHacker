@@ -6,6 +6,10 @@ import config from "@/lib/config"
 
 export type SettingsMap = Record<string, string>
 
+function normalizeGoogleModel(model: string | undefined) {
+  return model === "gemini-3.1-pro" ? "gemini-3.1-pro-preview" : model
+}
+
 /**
  * Helper to extract LLM provider settings from SettingsMap.
  */
@@ -24,7 +28,7 @@ export function getLLMSettings(settings: SettingsMap) {
       return {
         provider: provider as LLMProvider,
         apiKey: settings.google_api_key || config.ai.googleApiKey || "",
-        model: settings.google_model_name || config.ai.googleModelName || PROVIDERS[1]['defaultModelName'],
+        model: normalizeGoogleModel(settings.google_model_name) || config.ai.googleModelName || PROVIDERS[1]['defaultModelName'],
       }
     }
     if (provider === "mistral") {
