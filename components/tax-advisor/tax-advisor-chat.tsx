@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { Bot, GripHorizontal, Loader2, MessageCircle, Send, X } from "lucide-react"
-import { FormEvent, MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react"
+import { Bot, GripHorizontal, Loader2, MessageCircle, Send, X, User } from "lucide-react"
+import { FormEvent, MouseEvent as ReactMouseEvent, KeyboardEvent, useEffect, useRef, useState } from "react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 type ChatMessage = {
   role: "user" | "assistant"
@@ -136,6 +138,14 @@ export function TaxAdvisorChat() {
     }
   }
 
+  async function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault()
+      const formEvent = { preventDefault: () => {} } as FormEvent<HTMLFormElement>
+      await sendMessage(formEvent)
+    }
+  }
+
   return (
     <div
       className="fixed z-50"
@@ -160,45 +170,88 @@ export function TaxAdvisorChat() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="flex h-[560px] max-h-[calc(100vh-140px)] flex-col gap-3 p-3">
-            <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+          <CardContent className="flex h-[600px] max-h-[calc(100vh-140px)] flex-col gap-3 p-3">
+            <div className="flex-1 space-y-4 overflow-y-auto pr-2">
               {messages.map((message, index) => (
                 <div
                   key={`${message.role}-${index}`}
                   className={cn(
-                    "rounded-lg px-3 py-2 text-sm leading-relaxed",
-                    message.role === "user" ? "ml-8 bg-primary text-primary-foreground" : "mr-8 bg-muted"
+                    "flex flex-col gap-1",
+                    message.role === "user" ? "items-end ml-8" : "items-start mr-8"
                   )}
                 >
-                  {message.content}
+                  <div className="flex items-center gap-2 px-1 text-xs font-medium text-muted-foreground">
+                    {message.role === "user" ? (
+                      <>
+                        You <User className="h-3 w-3" />
+                      </>
+                    ) : (
+                      <>
+                        <Bot className="h-3 w-3" /> CRA Advisor
+                      </>
+                    )}
+                  </div>
+                  <div
+                    className={cn(
+                      "rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm",
+                      message.role === "user"
+                        ? "bg-primary text-primary-foreground rounded-tr-sm"
+                        : "bg-muted text-foreground rounded-tl-sm border"
+                    )}
+                  >
+                    {message.role === "assistant" ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none break-words prose-p:leading-relaxed prose-pre:p-0">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                    )}
+                  </div>
                 </div>
               ))}
               {isLoading ? (
-                <div className="mr-8 flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Checking CRA guidance and this page...
+                <div className="mr-8 flex flex-col gap-1 items-start">
+                  <div className="flex items-center gap-2 px-1 text-xs font-medium text-muted-foreground">
+                    <Bot className="h-3 w-3" /> CRA Advisor
+                  </div>
+                  <div className="flex items-center gap-2 rounded-2xl rounded-tl-sm border bg-muted px-4 py-2.5 text-sm text-muted-foreground shadow-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Checking CRA guidance and this page...
+                  </div>
                 </div>
               ) : null}
             </div>
             {sources.length > 0 ? (
-              <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
-                <div className="font-medium text-foreground">CRA sources used</div>
-                {sources.slice(0, 4).map((source) => (
-                  <a key={`${source.guideId}-${source.sourceUrl}`} href={source.sourceUrl} target="_blank" className="block truncate underline">
-                    {source.title}
-                  </a>
-                ))}
+              <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground shadow-sm">
+                <div className="mb-2 font-semibold text-foreground flex items-center gap-1.5">
+                  <Bot className="h-3.5 w-3.5" /> CRA sources used
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {sources.slice(0, 4).map((source) => (
+                    <a
+                      key={`${source.guideId}-${source.sourceUrl}`}
+                      href={source.sourceUrl}
+                      target="_blank"
+                      className="block truncate text-primary hover:underline transition-colors"
+                    >
+                      • {source.title}
+                    </a>
+                  ))}
+                </div>
               </div>
             ) : null}
-            <form onSubmit={sendMessage} className="flex gap-2">
+            <form onSubmit={sendMessage} className="flex gap-2 items-end pt-1">
               <Textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="Ask about GST, payroll, taxable benefits, T2, or this page..."
-                className="max-h-28 min-h-12 resize-none"
+                className="max-h-32 min-h-[44px] resize-none rounded-xl py-3"
               />
-              <Button type="submit" size="icon" disabled={isLoading || !input.trim()} className="h-12 w-12 shrink-0">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              <Button type="submit" size="icon" disabled={isLoading || !input.trim()} className="h-[44px] w-[44px] shrink-0 rounded-xl shadow-sm">
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4 ml-0.5" />}
               </Button>
             </form>
           </CardContent>
