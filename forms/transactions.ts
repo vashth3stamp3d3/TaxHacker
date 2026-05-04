@@ -46,6 +46,20 @@ export const transactionFormSchema = z
       ])
       .optional(),
     text: z.string().optional(),
+    paymentMethodId: z.string().optional(),
+    accountingSuggestion: z
+      .string()
+      .optional()
+      .transform((val) => {
+        if (!val || val.trim() === '') return null
+        try {
+          return JSON.parse(val)
+        } catch (e) {
+          throw new z.ZodError([
+            { message: "Invalid accounting suggestion JSON", path: ["accountingSuggestion"], code: z.ZodIssueCode.custom },
+          ])
+        }
+      }),
     note: z.string().optional(),
     items: z
       .string()

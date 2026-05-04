@@ -9,7 +9,7 @@ export type SettingsMap = Record<string, string>
  * Helper to extract LLM provider settings from SettingsMap.
  */
 export function getLLMSettings(settings: SettingsMap) {
-  const priorities = (settings.llm_providers || "openai,google,mistral,openai_compatible").split(",").map(p => p.trim()).filter(Boolean)
+  const priorities = (settings.llm_providers || "google,openai,mistral,openai_compatible").split(",").map(p => p.trim()).filter(Boolean)
 
   const providers = priorities.map((provider) => {
     if (provider === "openai") {

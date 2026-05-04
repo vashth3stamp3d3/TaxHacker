@@ -7,6 +7,14 @@ import { fieldsToJsonSchema } from "@/ai/schema"
 import { transactionFormSchema } from "@/forms/transactions"
 import { ActionState } from "@/lib/actions"
 import { getCurrentUser, isAiBalanceExhausted, isSubscriptionExpired } from "@/lib/auth"
+import { prisma } from "@/lib/db"
+import {
+  AccountingSuggestion,
+  getLedgerAccounts,
+  getPaymentMethods,
+  getTaxCodes,
+  postReceiptAnalysisJournalEntry,
+} from "@/models/accounting"
 import {
   getDirectorySize,
   getTransactionFileUploadPath,
@@ -16,9 +24,10 @@ import {
 } from "@/lib/files"
 import { DEFAULT_PROMPT_ANALYSE_NEW_FILE } from "@/models/defaults"
 import { createFile, deleteFile, getFileById, updateFile } from "@/models/files"
-import { createTransaction, TransactionData, updateTransactionFiles } from "@/models/transactions"
+import { ensureActiveOrganization } from "@/models/organizations"
+import { createTransaction, TransactionData, updateTransactionFiles, updateTransactionJournalEntry } from "@/models/transactions"
 import { updateUser } from "@/models/users"
-import { Category, Field, File, Project, Transaction } from "@/prisma/client"
+import { Category, Field, File, Prisma, Project, Transaction } from "@/prisma/client"
 import { randomUUID } from "crypto"
 import { mkdir, readFile, rename, writeFile } from "fs/promises"
 import { revalidatePath } from "next/cache"
@@ -51,6 +60,13 @@ export async function analyzeFileAction(
     }
   }
 
+  const organization = await ensureActiveOrganization(user)
+  const [accounts, taxCodes, paymentMethods] = await Promise.all([
+    getLedgerAccounts(organization.id),
+    getTaxCodes(organization.id),
+    getPaymentMethods(organization.id),
+  ])
+
   let attachments: AnalyzeAttachment[] = []
   try {
     attachments = await loadAttachmentsForAI(user, file)
@@ -59,12 +75,14 @@ export async function analyzeFileAction(
     return { success: false, error: "Failed to retrieve files: " + error }
   }
 
-  const prompt = buildLLMPrompt(
+  const prompt = `${buildLLMPrompt(
     settings.prompt_analyse_new_file || DEFAULT_PROMPT_ANALYSE_NEW_FILE,
     fields,
     categories,
     projects
-  )
+  )}
+
+${buildAccountingContext({ accounts, taxCodes, paymentMethods })}`
 
   const schema = fieldsToJsonSchema(fields)
 
@@ -97,7 +115,33 @@ export async function saveFileAsTransactionAction(
     if (!file) throw new Error("File not found")
 
     // Create transaction
+    const organization = await ensureActiveOrganization(user)
+    const accountingSuggestion = validatedForm.data.accountingSuggestion as AccountingSuggestion | null
+    const duplicate = await findLikelyDuplicateTransaction(user.id, validatedForm.data)
+    if (duplicate) {
+      return {
+        success: false,
+        error: `Likely duplicate found: ${duplicate.name || duplicate.merchant || "existing transaction"} for the same amount and date. Review existing transactions before posting.`,
+      }
+    }
+
     const transaction = await createTransaction(user.id, validatedForm.data)
+
+    let journalEntryId: string | undefined
+    if (accountingSuggestion) {
+      const journalEntry = await postReceiptAnalysisJournalEntry({
+        organizationId: organization.id,
+        createdById: user.id,
+        transactionId: transaction.id,
+        paymentMethodId: validatedForm.data.paymentMethodId,
+        description: validatedForm.data.description || validatedForm.data.name || "Analyzed receipt",
+        postedAt: validatedForm.data.issuedAt ? new Date(validatedForm.data.issuedAt) : new Date(),
+        accountingSuggestion,
+        fallbackAmount: validatedForm.data.convertedTotal || validatedForm.data.total || 0,
+      })
+      journalEntryId = journalEntry.id
+      await createAnalysisAutomationSuggestions(organization.id, transaction.id, accountingSuggestion)
+    }
 
     // Move file to processed location
     const userUploadsDirectory = getUserUploadsDirectory(user)
@@ -117,9 +161,16 @@ export async function saveFileAsTransactionAction(
     })
 
     await updateTransactionFiles(transaction.id, user.id, [file.id])
+    if (journalEntryId) {
+      await updateTransactionJournalEntry(transaction.id, user.id, journalEntryId)
+    }
 
     revalidatePath("/unsorted")
     revalidatePath("/transactions")
+    revalidatePath("/accounting")
+    revalidatePath("/accounting/journal-entries")
+    revalidatePath("/reports")
+    revalidatePath("/taxes/gst")
 
     return { success: true, data: transaction }
   } catch (error) {
@@ -127,6 +178,85 @@ export async function saveFileAsTransactionAction(
     return { success: false, error: `Failed to save transaction: ${error}` }
   }
 }
+
+async function findLikelyDuplicateTransaction(userId: string, data: TransactionData) {
+  if (!data.total || !data.issuedAt) return null
+  const issuedAt = new Date(data.issuedAt)
+  const dayStart = new Date(issuedAt)
+  dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(issuedAt)
+  dayEnd.setHours(23, 59, 59, 999)
+  const identityChecks = [
+    data.merchant ? { merchant: { equals: data.merchant, mode: "insensitive" as const } } : null,
+    data.name ? { name: { equals: data.name, mode: "insensitive" as const } } : null,
+  ].filter((check): check is NonNullable<typeof check> => Boolean(check))
+  if (identityChecks.length === 0) return null
+
+  return prisma.transaction.findFirst({
+    where: {
+      userId,
+      total: data.total,
+      currencyCode: data.currencyCode || undefined,
+      issuedAt: { gte: dayStart, lte: dayEnd },
+      OR: identityChecks,
+    },
+  })
+}
+
+async function createAnalysisAutomationSuggestions(
+  organizationId: string,
+  transactionId: string,
+  accountingSuggestion: AccountingSuggestion
+) {
+  const suggestions = accountingSuggestion.automationSuggestions || []
+  await Promise.all(
+    suggestions.slice(0, 10).map((suggestion) =>
+      prisma.automationSuggestion
+        .create({
+          data: {
+            organizationId,
+            type: String(suggestion.type || "document_analysis"),
+            title: String(suggestion.title || "Review analyzed document"),
+            description: String(suggestion.description || "Review this AI-generated automation suggestion."),
+            sourceType: "transaction",
+            sourceId: transactionId,
+            confidence: Number(suggestion.confidence || 50),
+            proposedData: suggestion as Prisma.InputJsonValue,
+          },
+        })
+        .catch(() => null)
+    )
+  )
+}
+
+function buildAccountingContext({
+  accounts,
+  taxCodes,
+  paymentMethods,
+}: {
+  accounts: Awaited<ReturnType<typeof getLedgerAccounts>>
+  taxCodes: Awaited<ReturnType<typeof getTaxCodes>>
+  paymentMethods: Awaited<ReturnType<typeof getPaymentMethods>>
+}) {
+  return [
+    "Accounting context for this Alberta Canadian print shop:",
+    "Use CAD values for debits and credits. Preserve original foreign currency in the normal transaction fields.",
+    "If a business purchase was paid with the owner's personal card, credit account 2310 Owing to Owner.",
+    "Only use Canadian GST ITC when GST is actually charged or recoverable. Foreign supplier invoices are usually OUT_OF_SCOPE for GST unless Canadian GST is shown.",
+    "",
+    "Chart of accounts:",
+    ...accounts.map((account) => `- ${account.code}: ${account.name} (${account.type}${account.subtype ? `/${account.subtype}` : ""})`),
+    "",
+    "Tax codes:",
+    ...taxCodes.map((taxCode) => `- ${taxCode.code}: ${taxCode.name} (${taxCode.rateBasisPoints / 100}%)`),
+    "",
+    "Payment methods:",
+    ...paymentMethods.map((method) => `- ${method.name}`),
+    "",
+    "Automation checks to consider: vendor creation/matching, duplicate receipt risk, GST review, inventory receipt, print job costing, fixed asset capitalization, owner reimbursement, payment method memory, foreign exchange notes, cash flow due dates, and document routing.",
+  ].join("\n")
+}
+
 
 export async function deleteUnsortedFileAction(
   _prevState: ActionState<Transaction> | null,

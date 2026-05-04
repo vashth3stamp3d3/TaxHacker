@@ -18,6 +18,16 @@ export const loadAttachmentsForAI = async (user: User, file: File): Promise<Anal
     throw new Error("File not found on disk")
   }
 
+  if (file.mimetype === "application/pdf") {
+    return [
+      {
+        filename: file.filename,
+        contentType: file.mimetype,
+        base64: await loadFileAsBase64(fullFilePath),
+      },
+    ]
+  }
+
   const { contentType, previews } = await generateFilePreviews(user, fullFilePath, file.mimetype)
 
   return Promise.all(

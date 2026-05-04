@@ -18,7 +18,26 @@ import {
 } from "@/components/ui/sidebar"
 import { UserProfile } from "@/lib/auth"
 import config from "@/lib/config"
-import { ClockArrowUp, FileText, Gift, House, Import, LayoutDashboard, Settings, Upload } from "lucide-react"
+import {
+  Bot,
+  BriefcaseBusiness,
+  Calculator,
+  ChartNoAxesCombined,
+  ClockArrowUp,
+  FileText,
+  Gift,
+  House,
+  Import,
+  LayoutDashboard,
+  Package,
+  PackageCheck,
+  ReceiptText,
+  Settings,
+  ShoppingCart,
+  Upload,
+  Users,
+  Warehouse,
+} from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -32,10 +51,12 @@ export function AppSidebar({
   profile,
   unsortedFilesCount,
   isSelfHosted,
+  organizationName,
 }: {
   profile: UserProfile
   unsortedFilesCount: number
   isSelfHosted: boolean
+  organizationName?: string
 }) {
   const { open, setOpenMobile } = useSidebar()
   const pathname = usePathname()
@@ -56,6 +77,7 @@ export function AppSidebar({
               <span className="truncate font-semibold text-lg">
                 <ColoredText>{config.app.title}</ColoredText>
               </span>
+              {organizationName && <span className="truncate text-xs text-muted-foreground">{organizationName}</span>}
             </div>
           </Link>
         </SidebarHeader>
@@ -111,6 +133,86 @@ export function AppSidebar({
                     <Link href="/apps">
                       <LayoutDashboard />
                       <span>Apps</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItemWithHighlight>
+                <SidebarMenuItemWithHighlight href="/accounting">
+                  <SidebarMenuButton asChild>
+                    <Link href="/accounting">
+                      <Calculator />
+                      <span>Accounting</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItemWithHighlight>
+                <SidebarMenuItemWithHighlight href="/reports">
+                  <SidebarMenuButton asChild>
+                    <Link href="/reports">
+                      <ChartNoAxesCombined />
+                      <span>Reports</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItemWithHighlight>
+                <SidebarMenuItemWithHighlight href="/taxes/gst">
+                  <SidebarMenuButton asChild>
+                    <Link href="/taxes/gst">
+                      <ReceiptText />
+                      <span>GST</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItemWithHighlight>
+                <SidebarMenuItemWithHighlight href="/customers">
+                  <SidebarMenuButton asChild>
+                    <Link href="/customers">
+                      <Users />
+                      <span>Customers</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItemWithHighlight>
+                <SidebarMenuItemWithHighlight href="/vendors">
+                  <SidebarMenuButton asChild>
+                    <Link href="/vendors">
+                      <BriefcaseBusiness />
+                      <span>Vendors</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItemWithHighlight>
+                <SidebarMenuItemWithHighlight href="/sales">
+                  <SidebarMenuButton asChild>
+                    <Link href="/sales">
+                      <ShoppingCart />
+                      <span>Sales</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItemWithHighlight>
+                <SidebarMenuItemWithHighlight href="/jobs">
+                  <SidebarMenuButton asChild>
+                    <Link href="/jobs">
+                      <Package />
+                      <span>Jobs</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItemWithHighlight>
+                <SidebarMenuItemWithHighlight href="/inventory">
+                  <SidebarMenuButton asChild>
+                    <Link href="/inventory">
+                      <Warehouse />
+                      <span>Inventory</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItemWithHighlight>
+                <SidebarMenuItemWithHighlight href="/purchasing">
+                  <SidebarMenuButton asChild>
+                    <Link href="/purchasing">
+                      <PackageCheck />
+                      <span>Purchasing</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItemWithHighlight>
+                <SidebarMenuItemWithHighlight href="/automation">
+                  <SidebarMenuButton asChild>
+                    <Link href="/automation">
+                      <Bot />
+                      <span>Automation</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItemWithHighlight>

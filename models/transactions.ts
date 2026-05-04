@@ -21,6 +21,9 @@ export type TransactionData = {
   projectCode?: string | null
   issuedAt?: Date | string | null
   text?: string | null
+  journalEntryId?: string | null
+  paymentMethodId?: string | null
+  accountingSuggestion?: Prisma.InputJsonValue | null
   [key: string]: unknown
 }
 
@@ -134,27 +137,35 @@ export const getTransactionsByFileId = cache(async (fileId: string, userId: stri
 
 export const createTransaction = async (userId: string, data: TransactionData): Promise<Transaction> => {
   const { standard, extra } = await splitTransactionDataExtraFields(data, userId)
+  if (standard.accountingSuggestion === null) {
+    delete standard.accountingSuggestion
+  }
+  const createData = {
+    ...standard,
+    extra: extra,
+    items: data.items as Prisma.InputJsonValue,
+    userId,
+  } as Prisma.TransactionUncheckedCreateInput
 
   return await prisma.transaction.create({
-    data: {
-      ...standard,
-      extra: extra,
-      items: data.items as Prisma.InputJsonValue,
-      userId,
-    },
+    data: createData,
   })
 }
 
 export const updateTransaction = async (id: string, userId: string, data: TransactionData): Promise<Transaction> => {
   const { standard, extra } = await splitTransactionDataExtraFields(data, userId)
+  if (standard.accountingSuggestion === null) {
+    delete standard.accountingSuggestion
+  }
+  const updateData = {
+    ...standard,
+    extra: extra,
+    ...(data.items !== undefined ? { items: data.items as Prisma.InputJsonValue } : {}),
+  } as Prisma.TransactionUncheckedUpdateInput
 
   return await prisma.transaction.update({
     where: { id, userId },
-    data: {
-      ...standard,
-      extra: extra,
-      items: data.items ? (data.items as Prisma.InputJsonValue) : [],
-    },
+    data: updateData,
   })
 }
 
@@ -162,6 +173,17 @@ export const updateTransactionFiles = async (id: string, userId: string, files: 
   return await prisma.transaction.update({
     where: { id, userId },
     data: { files },
+  })
+}
+
+export const updateTransactionJournalEntry = async (
+  id: string,
+  userId: string,
+  journalEntryId: string
+): Promise<Transaction> => {
+  return await prisma.transaction.update({
+    where: { id, userId },
+    data: { journalEntryId },
   })
 }
 
@@ -204,10 +226,32 @@ const splitTransactionDataExtraFields = async (
 
   const standard: TransactionData = {}
   const extra: Record<string, unknown> = {}
+  const standardFields = new Set([
+    "name",
+    "description",
+    "merchant",
+    "total",
+    "currencyCode",
+    "convertedTotal",
+    "convertedCurrencyCode",
+    "type",
+    "items",
+    "note",
+    "files",
+    "categoryCode",
+    "projectCode",
+    "issuedAt",
+    "text",
+    "journalEntryId",
+    "paymentMethodId",
+    "accountingSuggestion",
+  ])
 
   Object.entries(data).forEach(([key, value]) => {
     const fieldDef = fieldMap[key]
-    if (fieldDef) {
+    if (standardFields.has(key)) {
+      standard[key] = value
+    } else if (fieldDef) {
       if (fieldDef.isExtra) {
         extra[key] = value
       } else {

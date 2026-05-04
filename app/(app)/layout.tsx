@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
 import config from "@/lib/config"
 import { getUnsortedFilesCount } from "@/models/files"
+import { ensureActiveOrganization } from "@/models/organizations"
 import type { Metadata, Viewport } from "next"
 import "../globals.css"
 import { NotificationProvider } from "./context"
@@ -31,6 +32,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
+  const organization = await ensureActiveOrganization(user)
   const unsortedFilesCount = await getUnsortedFilesCount(user.id)
 
   const userProfile = {
@@ -53,6 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             profile={userProfile}
             unsortedFilesCount={unsortedFilesCount}
             isSelfHosted={config.selfHosted.isEnabled}
+            organizationName={organization.name}
           />
           <SidebarInset className="w-full h-full mt-[60px] md:mt-0 overflow-auto">
             {isSubscriptionExpired(user) && <SubscriptionExpired />}

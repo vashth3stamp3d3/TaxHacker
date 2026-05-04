@@ -10,13 +10,36 @@ import { FormSelectCategory } from "@/components/forms/select-category"
 import { FormSelectCurrency } from "@/components/forms/select-currency"
 import { FormSelectProject } from "@/components/forms/select-project"
 import { FormSelectType } from "@/components/forms/select-type"
-import { FormInput, FormTextarea } from "@/components/forms/simple"
+import { FormInput, FormSelect, FormTextarea } from "@/components/forms/simple"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Category, Currency, Field, File, Project } from "@/prisma/client"
+import { Input } from "@/components/ui/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Category, Currency, Field, File, LedgerAccount, PaymentMethod, Project } from "@/prisma/client"
 import { format } from "date-fns"
 import { ArrowDownToLine, Brain, Loader2, Trash2 } from "lucide-react"
 import { startTransition, useActionState, useMemo, useState } from "react"
+
+type AccountingLine = {
+  accountCode: string
+  accountName?: string
+  debit: number | string
+  credit: number | string
+  memo?: string
+  taxCode?: string
+  confidence?: number
+}
+
+type AutomationSuggestion = {
+  type: string
+  title: string
+  description: string
+  confidence?: number
+}
+
+type TaxTreatment = {
+  summary?: string
+}
 
 export default function AnalyzeForm({
   file,
@@ -25,6 +48,8 @@ export default function AnalyzeForm({
   currencies,
   fields,
   settings,
+  ledgerAccounts,
+  paymentMethods,
 }: {
   file: File
   categories: Category[]
@@ -32,6 +57,8 @@ export default function AnalyzeForm({
   currencies: Currency[]
   fields: Field[]
   settings: Record<string, string>
+  ledgerAccounts: LedgerAccount[]
+  paymentMethods: PaymentMethod[]
 }) {
   const { showNotification } = useNotification()
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -68,6 +95,12 @@ export default function AnalyzeForm({
       note: "",
       text: "",
       items: [],
+      accountingLines: [] as AccountingLine[],
+      taxTreatment: null as TaxTreatment | null,
+      paymentMethodSuggestion: null as { name?: string } | null,
+      paymentMethodId: "",
+      accountingReviewNotes: [] as string[],
+      automationSuggestions: [] as AutomationSuggestion[],
     }
 
     // Add extra fields
@@ -95,6 +128,32 @@ export default function AnalyzeForm({
     }
   }, [file.filename, settings, extraFields, file.cachedParseResult])
   const [formData, setFormData] = useState(initialFormState)
+  const paymentMethodItems = useMemo(
+    () => paymentMethods.map((method) => ({ code: method.id, name: method.name })),
+    [paymentMethods]
+  )
+  const ledgerAccountItems = useMemo(
+    () => ledgerAccounts.map((account) => ({ code: account.code, name: `${account.code} - ${account.name}` })),
+    [ledgerAccounts]
+  )
+  const accountingLines = (formData.accountingLines || []) as AccountingLine[]
+  const debitTotal = sumAccountingAmount(accountingLines, "debit")
+  const creditTotal = sumAccountingAmount(accountingLines, "credit")
+  const accountingSuggestion = {
+    accountingLines,
+    taxTreatment: formData.taxTreatment,
+    paymentMethodSuggestion: formData.paymentMethodSuggestion,
+    accountingReviewNotes: formData.accountingReviewNotes,
+    automationSuggestions: formData.automationSuggestions,
+  }
+
+  const setAccountingLine = (index: number, updates: Partial<AccountingLine>) => {
+    setFormData((prev) => {
+      const nextLines = [...((prev.accountingLines || []) as AccountingLine[])]
+      nextLines[index] = { ...nextLines[index], ...updates }
+      return { ...prev, accountingLines: nextLines }
+    })
+  }
 
   async function saveAsTransaction(formData: FormData) {
     setSaveError("")
@@ -131,7 +190,14 @@ export default function AnalyzeForm({
             ([_, value]) => value !== null && value !== undefined && value !== ""
           )
         )
-        setFormData({ ...formData, ...nonEmptyFields })
+        const suggestedPaymentMethod = paymentMethods.find(
+          (method) => method.name === (nonEmptyFields.paymentMethodSuggestion as { name?: string } | undefined)?.name
+        )
+        setFormData({
+          ...formData,
+          ...nonEmptyFields,
+          paymentMethodId: suggestedPaymentMethod?.id || formData.paymentMethodId || paymentMethods[0]?.id || "",
+        })
       }
     } catch (error) {
       console.error("Analysis failed:", error)
@@ -295,12 +361,115 @@ export default function AnalyzeForm({
             type="text"
             title={field.name}
             name={field.code}
-            value={formData[field.code as keyof typeof formData]}
+            value={String(formData[field.code as keyof typeof formData] || "")}
             onChange={(e) => setFormData((prev) => ({ ...prev, [field.code]: e.target.value }))}
             hideIfEmpty={!field.isVisibleInAnalysis}
             required={field.isRequired}
           />
         ))}
+
+        <div className="space-y-3 rounded-lg border border-violet-300 bg-violet-50/70 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">Accounting review</h3>
+              <p className="text-sm text-muted-foreground">
+                Review the AI suggested posting before saving. Debits and credits must balance.
+              </p>
+            </div>
+            <Badge variant={debitTotal === creditTotal ? "default" : "destructive"}>
+              Debits {money(debitTotal)} / Credits {money(creditTotal)}
+            </Badge>
+          </div>
+
+          <FormSelect
+            title="Card/payment used"
+            name="paymentMethodId"
+            items={paymentMethodItems}
+            value={formData.paymentMethodId}
+            placeholder="Select payment method"
+            isRequired
+            onValueChange={(value) => setFormData((prev) => ({ ...prev, paymentMethodId: value }))}
+          />
+
+          {accountingLines.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Account</TableHead>
+                  <TableHead>Memo</TableHead>
+                  <TableHead className="text-right">Debit</TableHead>
+                  <TableHead className="text-right">Credit</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accountingLines.map((line, index) => (
+                  <TableRow key={`${line.accountCode}-${index}`}>
+                    <TableCell className="min-w-[180px]">
+                      <FormSelect
+                        items={ledgerAccountItems}
+                        value={line.accountCode}
+                        onValueChange={(value) => {
+                          const account = ledgerAccounts.find((candidate) => candidate.code === value)
+                          setAccountingLine(index, { accountCode: value, accountName: account?.name || "" })
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        value={line.memo || ""}
+                        onChange={(event) => setAccountingLine(index, { memo: event.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        className="text-right"
+                        type="number"
+                        step="0.01"
+                        value={line.debit || ""}
+                        onChange={(event) => setAccountingLine(index, { debit: event.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        className="text-right"
+                        type="number"
+                        step="0.01"
+                        value={line.credit || ""}
+                        onChange={(event) => setAccountingLine(index, { credit: event.target.value })}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+
+          {Boolean(formData.taxTreatment) && (
+            <p className="text-sm text-muted-foreground">
+              GST review: {(formData.taxTreatment as TaxTreatment).summary}
+            </p>
+          )}
+
+          {((formData.accountingReviewNotes || []) as string[]).length > 0 && (
+            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {((formData.accountingReviewNotes || []) as string[]).map((note, index) => (
+                <li key={`${note}-${index}`}>{note}</li>
+              ))}
+            </ul>
+          )}
+
+          {((formData.automationSuggestions || []) as AutomationSuggestion[]).length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold">Automation suggestions</h4>
+              {((formData.automationSuggestions || []) as AutomationSuggestion[]).map((suggestion, index) => (
+                <div key={`${suggestion.type}-${index}`} className="rounded-md border bg-background p-3 text-sm">
+                  <div className="font-medium">{suggestion.title}</div>
+                  <div className="text-muted-foreground">{suggestion.description}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {formData.items && formData.items.length > 0 && (
           <ToolWindow title="Detected items">
@@ -310,6 +479,7 @@ export default function AnalyzeForm({
 
         <div className="hidden">
           <input type="text" name="items" value={JSON.stringify(formData.items)} readOnly />
+          <input type="text" name="accountingSuggestion" value={JSON.stringify(accountingSuggestion)} readOnly />
           <FormTextarea
             title={fieldMap.text.name}
             name="text"
@@ -330,7 +500,7 @@ export default function AnalyzeForm({
             {isDeleting ? "⏳ Deleting..." : "Delete"}
           </Button>
 
-          <Button type="submit" disabled={isSaving} data-save-button>
+          <Button type="submit" disabled={isSaving || (accountingLines.length > 0 && debitTotal !== creditTotal)} data-save-button>
             {isSaving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -352,4 +522,18 @@ export default function AnalyzeForm({
       </form>
     </>
   )
+}
+
+function sumAccountingAmount(lines: AccountingLine[], key: "debit" | "credit") {
+  return lines.reduce((sum, line) => {
+    const value = Number(line[key] || 0)
+    return Number.isFinite(value) ? sum + value : sum
+  }, 0)
+}
+
+function money(value: number) {
+  return new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency: "CAD",
+  }).format(value)
 }

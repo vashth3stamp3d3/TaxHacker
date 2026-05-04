@@ -29,6 +29,38 @@ export interface LLMResponse {
   error?: string
 }
 
+const GEMINI_THINKING_MODEL = "gemini-3.1-pro"
+
+function hasDocumentAttachment(req: LLMRequest) {
+  return Boolean(req.attachments?.length)
+}
+
+function googleAttachmentToContent(att: any) {
+  if (att.contentType.startsWith("image/")) {
+    return {
+      type: "image_url",
+      image_url: {
+        url: `data:${att.contentType};base64,${att.base64}`,
+      },
+    }
+  }
+
+  return {
+    type: "media",
+    mimeType: att.contentType,
+    data: att.base64,
+  }
+}
+
+function imageAttachmentToContent(att: any) {
+  return {
+    type: "image_url",
+    image_url: {
+      url: `data:${att.contentType};base64,${att.base64}`,
+    },
+  }
+}
+
 async function requestLLMUnified(config: LLMConfig, req: LLMRequest): Promise<LLMResponse> {
   try {
     const temperature = 0
@@ -70,13 +102,11 @@ async function requestLLMUnified(config: LLMConfig, req: LLMRequest): Promise<LL
 
     let message_content: any = [{ type: "text", text: req.prompt }]
     if (req.attachments && req.attachments.length > 0) {
-      const images = req.attachments.map((att) => ({
-        type: "image_url",
-        image_url: {
-          url: `data:${att.contentType};base64,${att.base64}`,
-        },
-      }))
-      message_content.push(...images)
+      const attachments =
+        config.provider === "google"
+          ? req.attachments.map(googleAttachmentToContent)
+          : req.attachments.filter((att) => att.contentType.startsWith("image/")).map(imageAttachmentToContent)
+      message_content.push(...attachments)
     }
     const messages: BaseMessage[] = [new HumanMessage({ content: message_content })]
 
@@ -104,7 +134,13 @@ async function requestLLMUnified(config: LLMConfig, req: LLMRequest): Promise<LL
 }
 
 export async function requestLLM(settings: LLMSettings, req: LLMRequest): Promise<LLMResponse> {
-  for (const config of settings.providers) {
+  const providers = hasDocumentAttachment(req)
+    ? settings.providers
+        .filter((config) => config.provider === "google")
+        .map((config) => ({ ...config, model: config.model || GEMINI_THINKING_MODEL }))
+    : settings.providers
+
+  for (const config of providers) {
     if (!config.model) {
       console.info("Skipping provider:", config.provider, "(no model)")
       continue
@@ -126,7 +162,9 @@ export async function requestLLM(settings: LLMSettings, req: LLMRequest): Promis
 
   return {
     output: {},
-    provider: settings.providers[0]?.provider || "openai",
-    error: "All LLM providers failed or are not configured",
+    provider: providers[0]?.provider || settings.providers[0]?.provider || "openai",
+    error: hasDocumentAttachment(req)
+      ? `Document analysis requires a configured Google API key. Add one in Settings > AI and use the ${GEMINI_THINKING_MODEL} thinking model.`
+      : "All LLM providers failed or are not configured",
   }
 }

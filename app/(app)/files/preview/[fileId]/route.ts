@@ -33,6 +33,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ file
       return new NextResponse(`File not found on disk: ${file.path}`, { status: 404 })
     }
 
+    if (file.mimetype === "application/pdf") {
+      const fileBuffer = await fs.readFile(fullFilePath)
+      return new NextResponse(fileBuffer, {
+        headers: {
+          "Content-Type": file.mimetype,
+          "Content-Disposition": `inline; filename*=${encodeFilename(file.filename)}`,
+        },
+      })
+    }
+
     // Generate previews
     const { contentType, previews } = await generateFilePreviews(user, fullFilePath, file.mimetype)
     if (page > previews.length) {

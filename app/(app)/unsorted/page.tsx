@@ -7,10 +7,12 @@ import { AnalyzeAllButton } from "@/components/unsorted/analyze-all-button"
 import AnalyzeForm from "@/components/unsorted/analyze-form"
 import { getCurrentUser } from "@/lib/auth"
 import config from "@/lib/config"
+import { getLedgerAccounts, getPaymentMethods } from "@/models/accounting"
 import { getCategories } from "@/models/categories"
 import { getCurrencies } from "@/models/currencies"
 import { getFields } from "@/models/fields"
 import { getUnsortedFiles } from "@/models/files"
+import { ensureActiveOrganization } from "@/models/organizations"
 import { getProjects } from "@/models/projects"
 import { getSettings } from "@/models/settings"
 import { FileText, PartyPopper, Settings, Upload } from "lucide-react"
@@ -24,12 +26,17 @@ export const metadata: Metadata = {
 
 export default async function UnsortedPage() {
   const user = await getCurrentUser()
-  const files = await getUnsortedFiles(user.id)
-  const categories = await getCategories(user.id)
-  const projects = await getProjects(user.id)
-  const currencies = await getCurrencies(user.id)
-  const fields = await getFields(user.id)
-  const settings = await getSettings(user.id)
+  const organization = await ensureActiveOrganization(user)
+  const [files, categories, projects, currencies, fields, settings, ledgerAccounts, paymentMethods] = await Promise.all([
+    getUnsortedFiles(user.id),
+    getCategories(user.id),
+    getProjects(user.id),
+    getCurrencies(user.id),
+    getFields(user.id),
+    getSettings(user.id),
+    getLedgerAccounts(organization.id),
+    getPaymentMethods(organization.id),
+  ])
 
   return (
     <>
@@ -80,6 +87,8 @@ export default async function UnsortedPage() {
                 currencies={currencies}
                 fields={fields}
                 settings={settings}
+                ledgerAccounts={ledgerAccounts}
+                paymentMethods={paymentMethods}
               />
             </div>
           </Card>

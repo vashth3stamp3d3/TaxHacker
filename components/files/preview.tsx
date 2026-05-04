@@ -16,19 +16,32 @@ export function FilePreview({ file }: { file: File }) {
     <>
       <div className="flex flex-col gap-2 p-4 overflow-hidden">
         <div className="aspect-[3/4]">
-          <Image
-            src={`/files/preview/${file.id}`}
-            alt={file.filename}
-            width={300}
-            height={400}
-            loading="lazy"
-            className={`${
-              isEnlarged
-                ? "fixed inset-0 z-50 m-auto w-screen h-screen object-contain cursor-zoom-out"
-                : "w-full h-full object-contain cursor-zoom-in"
-            }`}
-            onClick={() => setIsEnlarged(!isEnlarged)}
-          />
+          {file.mimetype === "application/pdf" ? (
+            <iframe
+              src={`/files/preview/${file.id}`}
+              title={file.filename}
+              className={`${
+                isEnlarged
+                  ? "fixed inset-0 z-50 m-auto h-screen w-screen bg-white cursor-zoom-out"
+                  : "h-full w-full rounded-md border bg-white cursor-zoom-in"
+              }`}
+              onClick={() => setIsEnlarged(!isEnlarged)}
+            />
+          ) : (
+            <Image
+              src={`/files/preview/${file.id}`}
+              alt={file.filename}
+              width={300}
+              height={400}
+              loading="lazy"
+              className={`${
+                isEnlarged
+                  ? "fixed inset-0 z-50 m-auto w-screen h-screen object-contain cursor-zoom-out"
+                  : "w-full h-full object-contain cursor-zoom-in"
+              }`}
+              onClick={() => setIsEnlarged(!isEnlarged)}
+            />
+          )}
           {isEnlarged && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={() => setIsEnlarged(false)} />
           )}
