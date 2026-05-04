@@ -14,6 +14,8 @@ const envSchema = z.object({
     .string()
     .min(16, "Auth secret must be at least 16 characters")
     .default("please-set-your-key-here"),
+  PORTAL_PASSWORD: z.string().optional(),
+  PORTAL_COOKIE_SECRET: z.string().optional(),
   DISABLE_SIGNUP: z.enum(["true", "false"]).default("false"),
   RESEND_API_KEY: z.string().default("please-set-your-resend-api-key-here"),
   RESEND_FROM_EMAIL: z.string().default("TaxHacker <user@localhost>"),
@@ -64,6 +66,12 @@ const config = {
     secret: env.BETTER_AUTH_SECRET,
     loginUrl: "/enter",
     disableSignup: env.DISABLE_SIGNUP === "true" || env.SELF_HOSTED_MODE === "true",
+  },
+  portal: {
+    password: env.PORTAL_PASSWORD?.trim() || "",
+    cookieSecret: env.PORTAL_COOKIE_SECRET || env.BETTER_AUTH_SECRET,
+    cookieName: "formulated_tax_portal",
+    maxAgeSeconds: 8 * 60 * 60,
   },
   stripe: {
     secretKey: env.STRIPE_SECRET_KEY,
