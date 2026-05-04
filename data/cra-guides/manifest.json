@@ -1,0 +1,36 @@
+{
+  "fetchedAt": "2026-05-04T07:20:00.000Z",
+  "note": "Initial checked-in CRA reference bundle for the Formulated Tax advisor. Regenerate with scripts/update-cra-guides.mjs when Canada.ca fetches are available.",
+  "guides": [
+    {
+      "id": "t4012-corporation-income-tax",
+      "title": "T4012 T2 Corporation Income Tax Guide",
+      "filename": "t4012-corporation-income-tax.md",
+      "sourceUrl": "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4012/t2-corporation-income-tax-guide.html"
+    },
+    {
+      "id": "rc4022-gst-hst-registrants",
+      "title": "RC4022 General Information for GST/HST Registrants",
+      "filename": "rc4022-gst-hst-registrants.md",
+      "sourceUrl": "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/rc4022/general-information-gst-hst-registrants.html"
+    },
+    {
+      "id": "t4001-payroll-deductions",
+      "title": "T4001 Employers' Guide - Payroll Deductions and Remittances",
+      "filename": "t4001-payroll-deductions.md",
+      "sourceUrl": "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4001.html"
+    },
+    {
+      "id": "t4130-taxable-benefits",
+      "title": "T4130 Employers' Guide - Taxable Benefits and Allowances",
+      "filename": "t4130-taxable-benefits.md",
+      "sourceUrl": "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4130/employers-guide-taxable-benefits-allowances.html"
+    },
+    {
+      "id": "t4002-business-expenses",
+      "title": "T4002 Self-employed Business, Professional, Commission, Farming, and Fishing Income",
+      "filename": "t4002-business-expenses.md",
+      "sourceUrl": "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4002.html"
+    }
+  ]
+}

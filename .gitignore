@@ -2,6 +2,8 @@
 
 # data directory
 /data/*
+!/data/cra-guides/
+!/data/cra-guides/**
 
 # dependencies
 /node_modules

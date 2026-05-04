@@ -4,6 +4,7 @@ import MobileMenu from "@/components/sidebar/mobile-menu"
 import { AppSidebar } from "@/components/sidebar/sidebar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
+import { TaxAdvisorChat } from "@/components/tax-advisor/tax-advisor-chat"
 import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
 import config from "@/lib/config"
 import { getUnsortedFilesCount } from "@/models/files"
@@ -62,6 +63,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {children}
           </SidebarInset>
         </SidebarProvider>
+        <TaxAdvisorChat />
         <Toaster />
       </ScreenDropArea>
     </NotificationProvider>
