@@ -32,7 +32,7 @@ export default async function SelfHostedWelcomePage() {
     redirect(config.selfHosted.redirectUrl)
   }
 
-  const defaultProvider = PROVIDERS[0].key
+  const defaultProvider = PROVIDERS.find((provider) => provider.key === "google")?.key || PROVIDERS[0].key
   const defaultApiKeys: Record<string, string> = {
     openai: config.ai.openaiApiKey ?? "",
     google: config.ai.googleApiKey ?? "",
