@@ -4,6 +4,8 @@
 /data/*
 !/data/cra-guides/
 !/data/cra-guides/**
+!/data/formulated-prints/
+!/data/formulated-prints/**
 
 # dependencies
 /node_modules
@@ -58,3 +60,6 @@ pgdata
 *.db-journal
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Local git worktrees
+.worktrees/

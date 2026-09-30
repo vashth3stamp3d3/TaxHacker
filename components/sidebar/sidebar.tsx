@@ -8,6 +8,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -21,20 +22,26 @@ import config from "@/lib/config"
 import {
   Bot,
   BriefcaseBusiness,
+  Building2,
   Calculator,
   ChartNoAxesCombined,
   ClockArrowUp,
+  Coins,
+  DatabaseBackup,
   FileText,
+  FolderKanban,
+  FormInput,
   Gift,
   House,
   Import,
-  LayoutDashboard,
   Package,
   PackageCheck,
   ReceiptText,
-  Settings,
   ShoppingCart,
+  Sparkles,
+  Tags,
   Upload,
+  User,
   Users,
   Warehouse,
 } from "lucide-react"
@@ -42,25 +49,58 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect } from "react"
-import { ColoredText } from "../ui/colored-text"
 import { Blinker } from "./blinker"
 import { SidebarMenuItemWithHighlight } from "./sidebar-item"
 import SidebarUser from "./sidebar-user"
+
+type SidebarApp = {
+  id: string
+  name: string
+  icon: string
+}
+
+const erpItems = [
+  { title: "Accounting", href: "/accounting", icon: Calculator },
+  { title: "Reports", href: "/reports", icon: ChartNoAxesCombined },
+  { title: "GST", href: "/taxes/gst", icon: ReceiptText },
+  { title: "Customers", href: "/customers", icon: Users },
+  { title: "Vendors", href: "/vendors", icon: BriefcaseBusiness },
+  { title: "Sales", href: "/sales", icon: ShoppingCart },
+  { title: "Jobs", href: "/jobs", icon: Package },
+  { title: "Inventory", href: "/inventory", icon: Warehouse },
+  { title: "Purchasing", href: "/purchasing", icon: PackageCheck },
+  { title: "Automation", href: "/automation", icon: Bot },
+]
+
+const settingsItems = [
+  { title: "Profile & Plan", href: "/settings/profile", icon: User },
+  { title: "Company ERP", href: "/settings/company", icon: Building2 },
+  { title: "LLM settings", href: "/settings/llm", icon: Sparkles },
+  { title: "Fields", href: "/settings/fields", icon: FormInput },
+  { title: "Categories", href: "/settings/categories", icon: Tags },
+  { title: "Projects", href: "/settings/projects", icon: FolderKanban },
+  { title: "Currencies", href: "/settings/currencies", icon: Coins },
+  { title: "Backup & Restore", href: "/settings/backups", icon: DatabaseBackup },
+]
 
 export function AppSidebar({
   profile,
   unsortedFilesCount,
   isSelfHosted,
+  apps,
   organizationName,
 }: {
   profile: UserProfile
   unsortedFilesCount: number
   isSelfHosted: boolean
+  apps: SidebarApp[]
   organizationName?: string
 }) {
   const { open, setOpenMobile } = useSidebar()
   const pathname = usePathname()
   const { notification } = useNotification()
+  const accountTitle = profile.name || profile.email
+  const accountSubtitle = isSelfHosted ? `Version ${config.app.version}` : profile.email
 
   // Hide sidebar on mobile when clicking an item
   useEffect(() => {
@@ -71,13 +111,11 @@ export function AppSidebar({
     <>
       <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader>
-          <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo/256.png" alt="Logo" className="h-10 w-10 rounded-lg" width={40} height={40} />
-            <div className="grid flex-1 text-left leading-tight">
-              <span className="truncate font-semibold text-lg">
-                <ColoredText>{config.app.title}</ColoredText>
-              </span>
-              {organizationName && <span className="truncate text-xs text-muted-foreground">{organizationName}</span>}
+          <Link href="/" className="flex min-w-0 items-center gap-2">
+            <Image src="/logo/256.png" alt="Logo" className="h-10 w-10 shrink-0 rounded-lg" width={40} height={40} />
+            <div className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+              <span className="truncate font-semibold text-base text-black">{accountTitle}</span>
+              <span className="truncate text-xs text-muted-foreground">{organizationName || accountSubtitle}</span>
             </div>
           </Link>
         </SidebarHeader>
@@ -128,102 +166,62 @@ export function AppSidebar({
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/apps">
-                  <SidebarMenuButton asChild>
-                    <Link href="/apps">
-                      <LayoutDashboard />
-                      <span>Apps</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/accounting">
-                  <SidebarMenuButton asChild>
-                    <Link href="/accounting">
-                      <Calculator />
-                      <span>Accounting</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/reports">
-                  <SidebarMenuButton asChild>
-                    <Link href="/reports">
-                      <ChartNoAxesCombined />
-                      <span>Reports</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/taxes/gst">
-                  <SidebarMenuButton asChild>
-                    <Link href="/taxes/gst">
-                      <ReceiptText />
-                      <span>GST</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/customers">
-                  <SidebarMenuButton asChild>
-                    <Link href="/customers">
-                      <Users />
-                      <span>Customers</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/vendors">
-                  <SidebarMenuButton asChild>
-                    <Link href="/vendors">
-                      <BriefcaseBusiness />
-                      <span>Vendors</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/sales">
-                  <SidebarMenuButton asChild>
-                    <Link href="/sales">
-                      <ShoppingCart />
-                      <span>Sales</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/jobs">
-                  <SidebarMenuButton asChild>
-                    <Link href="/jobs">
-                      <Package />
-                      <span>Jobs</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/inventory">
-                  <SidebarMenuButton asChild>
-                    <Link href="/inventory">
-                      <Warehouse />
-                      <span>Inventory</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/purchasing">
-                  <SidebarMenuButton asChild>
-                    <Link href="/purchasing">
-                      <PackageCheck />
-                      <span>Purchasing</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/automation">
-                  <SidebarMenuButton asChild>
-                    <Link href="/automation">
-                      <Bot />
-                      <span>Automation</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-                <SidebarMenuItemWithHighlight href="/settings">
-                  <SidebarMenuButton asChild>
-                    <Link href="/settings">
-                      <Settings />
-                      <span>Settings</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarGroup>
+            <SidebarGroupLabel>Print shop</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {erpItems.map((item) => (
+                  <SidebarMenuItemWithHighlight key={item.href} href={item.href}>
+                    <SidebarMenuButton asChild>
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItemWithHighlight>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          {apps.length > 0 && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Apps</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {apps.map((app) => (
+                    <SidebarMenuItemWithHighlight key={app.id} href={`/apps/${app.id}`}>
+                      <SidebarMenuButton asChild>
+                        <Link href={`/apps/${app.id}`}>
+                          <span className="text-base leading-none">{app.icon}</span>
+                          <span>{app.name}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItemWithHighlight>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+
+          <SidebarGroup>
+            <SidebarGroupLabel>Settings</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {settingsItems.map((item) => (
+                  <SidebarMenuItemWithHighlight key={item.href} href={item.href}>
+                    <SidebarMenuButton asChild>
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItemWithHighlight>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -259,15 +257,17 @@ export function AppSidebar({
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarUser profile={profile} isSelfHosted={isSelfHosted} />
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {!isSelfHosted && (
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarUser profile={profile} isSelfHosted={isSelfHosted} />
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
         </SidebarFooter>
       </Sidebar>
     </>

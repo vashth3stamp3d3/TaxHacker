@@ -25,7 +25,7 @@ export const getJobLabor = cache(async (organizationId: string) => {
 export async function createQuote({
   organizationId,
   customerId,
-  description,
+  description: _description,
   amount,
 }: {
   organizationId: string

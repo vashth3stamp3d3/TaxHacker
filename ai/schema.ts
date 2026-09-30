@@ -28,7 +28,7 @@ export const fieldsToJsonSchema = (fields: Field[]) => {
       accountingLines: {
         type: "array",
         description:
-          "Balanced double-entry bookkeeping suggestion in dollars. Use account codes from the supplied chart of accounts. For owner-paid business purchases, debit the expense/inventory/tax accounts and credit the Owing to Owner liability account.",
+          "Balanced double-entry bookkeeping suggestion in dollars. Use account codes from the supplied chart of accounts. For owner-paid business purchases, debit the expense/inventory/tax accounts and credit account 2310 Shareholder Loan - Jerrold.",
         items: {
           type: "object",
           properties: {

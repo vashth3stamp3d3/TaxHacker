@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { TaxAdvisorChat } from "@/components/tax-advisor/tax-advisor-chat"
 import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
 import config from "@/lib/config"
+import { getApps } from "@/app/(app)/apps/common"
 import { getUnsortedFilesCount } from "@/models/files"
 import { ensureActiveOrganization } from "@/models/organizations"
 import type { Metadata, Viewport } from "next"
@@ -34,7 +35,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const unsortedFilesCount = await getUnsortedFilesCount(user.id)
+  const [unsortedFilesCount, apps] = await Promise.all([getUnsortedFilesCount(user.id), getApps()])
 
   const userProfile = {
     id: user.id,
@@ -57,6 +58,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             unsortedFilesCount={unsortedFilesCount}
             isSelfHosted={config.selfHosted.isEnabled}
             organizationName={organization.name}
+            apps={apps.map((app) => ({
+              id: app.id,
+              name: app.manifest.name,
+              icon: app.manifest.icon,
+            }))}
           />
           <SidebarInset className="w-full h-full mt-[60px] md:mt-0 overflow-auto">
             {isSubscriptionExpired(user) && <SubscriptionExpired />}

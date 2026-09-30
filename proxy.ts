@@ -3,7 +3,7 @@ import { createPortalToken } from "@/lib/portal-auth"
 import { getSessionCookie } from "better-auth/cookies"
 import { NextRequest, NextResponse } from "next/server"
 
-export default async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (globalConfig.portal.password) {
     const pathname = request.nextUrl.pathname
     const isPortalRoute = pathname === "/portal" || pathname.startsWith("/portal/")

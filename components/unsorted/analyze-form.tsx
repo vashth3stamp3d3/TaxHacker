@@ -1,7 +1,8 @@
 "use client"
 
 import { useNotification } from "@/app/(app)/context"
-import { analyzeFileAction, deleteUnsortedFileAction, saveFileAsTransactionAction } from "@/app/(app)/unsorted/actions"
+import { deleteTransactionAction } from "@/app/(app)/transactions/actions"
+import { deleteUnsortedFileAction, saveFileAsTransactionAction } from "@/app/(app)/unsorted/actions"
 import { CurrencyConverterTool } from "@/components/agents/currency-converter"
 import { ItemsDetectTool } from "@/components/agents/items-detect"
 import ToolWindow from "@/components/agents/tool-window"
@@ -15,10 +16,38 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Category, Currency, Field, File, LedgerAccount, PaymentMethod, Project } from "@/prisma/client"
+import { ActionState } from "@/lib/actions"
+import { analyzeLimiter, analyzeProgress } from "@/lib/analyze-queue"
+import { Category, Currency, Field, File, LedgerAccount, PaymentMethod, Project, Transaction } from "@/prisma/client"
 import { format } from "date-fns"
 import { ArrowDownToLine, Brain, Loader2, Trash2 } from "lucide-react"
-import { startTransition, useActionState, useMemo, useState } from "react"
+import { startTransition, useEffect, useActionState, useMemo, useState } from "react"
+import { useFormStatus } from "react-dom"
+import { DuplicateModal } from "../transactions/duplicate-modal"
+
+const MAX_ANALYZE_RETRIES = 8
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+function SaveButton({ isSaving, disabled }: { isSaving: boolean; disabled?: boolean }) {
+  const { pending } = useFormStatus()
+  const loading = pending || isSaving
+
+  return (
+    <Button type="submit" disabled={loading || disabled} data-save-button>
+      {loading ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Saving...
+        </>
+      ) : (
+        <>
+          <ArrowDownToLine className="h-4 w-4" />
+          Save as Transaction
+        </>
+      )}
+    </Button>
+  )
+}
 
 type AccountingLine = {
   accountCode: string
@@ -50,6 +79,7 @@ export default function AnalyzeForm({
   settings,
   ledgerAccounts,
   paymentMethods,
+  analyzeConcurrency,
 }: {
   file: File
   categories: Category[]
@@ -59,14 +89,29 @@ export default function AnalyzeForm({
   settings: Record<string, string>
   ledgerAccounts: LedgerAccount[]
   paymentMethods: PaymentMethod[]
+  analyzeConcurrency: number
 }) {
   const { showNotification } = useNotification()
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [hasAnalyzed, setHasAnalyzed] = useState(
+    Object.keys(file.cachedParseResult || {}).length > 0
+  )
   const [analyzeStep, setAnalyzeStep] = useState<string>("")
   const [analyzeError, setAnalyzeError] = useState<string>("")
   const [deleteState, deleteAction, isDeleting] = useActionState(deleteUnsortedFileAction, null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false)
+  const [duplicateData, setDuplicateData] = useState<ActionState<Transaction>["duplicateData"] | null>(null)
+  const [pendingFormData, setPendingFormData] = useState<FormData | null>(null)
+
+  useEffect(() => {
+    analyzeLimiter.setMax(analyzeConcurrency)
+  }, [analyzeConcurrency])
+
+  useEffect(() => {
+    return () => analyzeProgress.clear(file.id)
+  }, [file.id])
 
   const fieldMap = useMemo(() => {
     return fields.reduce(
@@ -116,7 +161,7 @@ export default function AnalyzeForm({
     const cachedResults = file.cachedParseResult
       ? Object.fromEntries(
           Object.entries(file.cachedParseResult as Record<string, string>).filter(
-            ([_, value]) => value !== null && value !== undefined && value !== ""
+            ([, value]) => value !== null && value !== undefined && value !== ""
           )
         )
       : {}
@@ -166,6 +211,10 @@ export default function AnalyzeForm({
         showNotification({ code: "global.banner", message: "Saved!", type: "success" })
         showNotification({ code: "sidebar.transactions", message: "new" })
         setTimeout(() => showNotification({ code: "sidebar.transactions", message: "" }), 3000)
+      } else if (result.error === "DUPLICATE_FOUND" && result.duplicateData) {
+        setDuplicateData(result.duplicateData)
+        setPendingFormData(formData) // Save the form data so we can retry later
+        setIsDuplicateModalOpen(true)
       } else {
         setSaveError(result.error ? result.error : "Something went wrong...")
         showNotification({ code: "global.banner", message: "Failed to save", type: "failed" })
@@ -173,21 +222,81 @@ export default function AnalyzeForm({
     })
   }
 
+  const handleForceSave = () => {
+    if (!pendingFormData) return
+
+    setIsDuplicateModalOpen(false)
+
+    const newFormData = new FormData()
+    for (const [key, value] of pendingFormData.entries()) {
+      newFormData.append(key, value)
+    }
+    newFormData.append("forceSave", "true")
+
+    saveAsTransaction(newFormData)
+  }
+
+  const handleCancelDuplicate = () => {
+    setIsDuplicateModalOpen(false)
+    setPendingFormData(null)
+    setDuplicateData(null)
+  }
+  const handleReplaceOld = async () => {
+    if (!duplicateData || !pendingFormData) return
+
+    setIsDuplicateModalOpen(false)
+    setIsSaving(true)
+
+    try {
+      await deleteTransactionAction(null, duplicateData.existingTransaction.id)
+
+      await saveAsTransaction(pendingFormData)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Failed to replace transaction")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const startAnalyze = async () => {
     setIsAnalyzing(true)
     setAnalyzeError("")
+    analyzeProgress.setState(file.id, "queued")
+    let attempt = 0
     try {
-      setAnalyzeStep("Analyzing...")
-      const results = await analyzeFileAction(file, settings, fields, categories, projects)
+      let response: Response
+      while (true) {
+        setAnalyzeStep(attempt < 3 ? "Analyzing..." : "Analyzing… (retrying after rate-limit)")
+        response = await analyzeLimiter.run(async () => {
+          analyzeProgress.setState(file.id, "analyzing")
+          return fetch("/api/unsorted/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileId: file.id }),
+          })
+        })
+        if (response.status === 429 && attempt < MAX_ANALYZE_RETRIES) {
+          analyzeProgress.setState(file.id, "queued")
+          analyzeLimiter.reduceMax()
+          attempt += 1
+          await delay(Math.min(2000 * 2 ** (attempt - 1), 30000))
+          continue
+        }
+        break
+      }
+      const results = await response.json()
 
       console.log("Analysis results:", results)
 
       if (!results.success) {
+        analyzeProgress.setState(file.id, "error")
         setAnalyzeError(results.error ? results.error : "Something went wrong...")
       } else {
+        analyzeProgress.setState(file.id, "done")
+        setHasAnalyzed(true)
         const nonEmptyFields = Object.fromEntries(
           Object.entries(results.data?.output || {}).filter(
-            ([_, value]) => value !== null && value !== undefined && value !== ""
+            ([, value]) => value !== null && value !== undefined && value !== ""
           )
         )
         const suggestedPaymentMethod = paymentMethods.find(
@@ -200,6 +309,7 @@ export default function AnalyzeForm({
         })
       }
     } catch (error) {
+      analyzeProgress.setState(file.id, "error")
       console.error("Analysis failed:", error)
       setAnalyzeError(error instanceof Error ? error.message : "Analysis failed")
     } finally {
@@ -224,7 +334,7 @@ export default function AnalyzeForm({
           ) : (
             <>
               <Brain className="mr-1 h-4 w-4" />
-              <span>Analyze with AI</span>
+              <span>{hasAnalyzed ? "Analyze again" : "Analyze with AI"}</span>
             </>
           )}
         </Button>
@@ -269,7 +379,9 @@ export default function AnalyzeForm({
             value={formData.total || ""}
             onChange={(e) => {
               const newValue = parseFloat(e.target.value || "0")
-              !isNaN(newValue) && setFormData((prev) => ({ ...prev, total: newValue }))
+              if (!isNaN(newValue)) {
+                setFormData((prev) => ({ ...prev, total: newValue }))
+              }
             }}
             className="w-32"
             required={fieldMap.total.isRequired}
@@ -296,12 +408,17 @@ export default function AnalyzeForm({
         </div>
 
         {formData.total != 0 && formData.currencyCode && formData.currencyCode !== settings.default_currency && (
-          <ToolWindow title={`Exchange rate on ${format(new Date(formData.issuedAt || Date.now()), "LLLL dd, yyyy")}`}>
+          <ToolWindow
+            title={`Exchange rate on ${format(
+              formData.issuedAt ? new Date(formData.issuedAt + "T00:00:00") : new Date(),
+              "LLLL dd, yyyy"
+            )}`}
+          >
             <CurrencyConverterTool
               originalTotal={formData.total}
               originalCurrencyCode={formData.currencyCode}
               targetCurrencyCode={settings.default_currency}
-              date={new Date(formData.issuedAt || Date.now())}
+              date={formData.issuedAt ? new Date(formData.issuedAt + "T00:00:00") : new Date()}
               onChange={(value) => setFormData((prev) => ({ ...prev, convertedTotal: value }))}
             />
             <input type="hidden" name="convertedCurrencyCode" value={settings.default_currency} />
@@ -496,23 +613,20 @@ export default function AnalyzeForm({
             variant="destructive"
             disabled={isDeleting}
           >
-            <Trash2 className="h-4 w-4" />
-            {isDeleting ? "⏳ Deleting..." : "Delete"}
-          </Button>
-
-          <Button type="submit" disabled={isSaving || (accountingLines.length > 0 && debitTotal !== creditTotal)} data-save-button>
-            {isSaving ? (
+            {isDeleting ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Deleting...
               </>
             ) : (
               <>
-                <ArrowDownToLine className="h-4 w-4" />
-                Save as Transaction
+                <Trash2 className="h-4 w-4" />
+                Delete
               </>
             )}
           </Button>
+
+          <SaveButton isSaving={isSaving} disabled={accountingLines.length > 0 && debitTotal !== creditTotal} />
         </div>
 
         <div>
@@ -520,6 +634,14 @@ export default function AnalyzeForm({
           {saveError && <FormError>{saveError}</FormError>}
         </div>
       </form>
+      <DuplicateModal
+        isOpen={isDuplicateModalOpen}
+        onOpenChange={setIsDuplicateModalOpen}
+        duplicateData={duplicateData}
+        onKeepBoth={handleForceSave} // This should trigger the action again with forceSave: true
+        onReplaceOld={handleReplaceOld}
+        onCancel={handleCancelDuplicate} // This should just close the modal
+      />
     </>
   )
 }

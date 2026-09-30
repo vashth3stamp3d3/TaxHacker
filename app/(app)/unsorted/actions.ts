@@ -1,20 +1,9 @@
 "use server"
 
-import { AnalysisResult, analyzeTransaction } from "@/ai/analyze"
-import { AnalyzeAttachment, loadAttachmentsForAI } from "@/ai/attachments"
-import { buildLLMPrompt } from "@/ai/prompt"
-import { fieldsToJsonSchema } from "@/ai/schema"
 import { transactionFormSchema } from "@/forms/transactions"
 import { ActionState } from "@/lib/actions"
-import { getCurrentUser, isAiBalanceExhausted, isSubscriptionExpired } from "@/lib/auth"
+import { getCurrentUser } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import {
-  AccountingSuggestion,
-  getLedgerAccounts,
-  getPaymentMethods,
-  getTaxCodes,
-  postReceiptAnalysisJournalEntry,
-} from "@/models/accounting"
 import {
   getDirectorySize,
   getTransactionFileUploadPath,
@@ -22,98 +11,22 @@ import {
   safePathJoin,
   unsortedFilePath,
 } from "@/lib/files"
-import { DEFAULT_PROMPT_ANALYSE_NEW_FILE } from "@/models/defaults"
+import { AccountingSuggestion, postReceiptAnalysisJournalEntry } from "@/models/accounting"
 import { createFile, deleteFile, getFileById, updateFile } from "@/models/files"
 import { ensureActiveOrganization } from "@/models/organizations"
-import { createTransaction, TransactionData, updateTransactionFiles, updateTransactionJournalEntry } from "@/models/transactions"
+import {
+  createTransaction,
+  TransactionData,
+  updateTransactionFiles,
+  updateTransactionJournalEntry,
+  findDuplicateTransaction,
+} from "@/models/transactions"
 import { updateUser } from "@/models/users"
-import { Category, Field, File, Prisma, Project, Transaction } from "@/prisma/client"
+import { Prisma, Transaction } from "@/prisma/client"
 import { randomUUID } from "crypto"
 import { mkdir, readFile, rename, writeFile } from "fs/promises"
 import { revalidatePath } from "next/cache"
 import path from "path"
-import { errorMessage, logError, logInfo } from "@/lib/logger"
-
-export async function analyzeFileAction(
-  file: File,
-  settings: Record<string, string>,
-  fields: Field[],
-  categories: Category[],
-  projects: Project[]
-): Promise<ActionState<AnalysisResult>> {
-  const user = await getCurrentUser()
-
-  if (!file || file.userId !== user.id) {
-    return { success: false, error: "File not found or does not belong to the user" }
-  }
-
-  if (isAiBalanceExhausted(user)) {
-    return {
-      success: false,
-      error: "You used all of your pre-paid AI scans, please upgrade your account or buy new subscription plan",
-    }
-  }
-
-  if (isSubscriptionExpired(user)) {
-    return {
-      success: false,
-      error: "Your subscription has expired, please upgrade your account or buy new subscription plan",
-    }
-  }
-
-  const organization = await ensureActiveOrganization(user)
-  const [accounts, taxCodes, paymentMethods] = await Promise.all([
-    getLedgerAccounts(organization.id),
-    getTaxCodes(organization.id),
-    getPaymentMethods(organization.id),
-  ])
-
-  let attachments: AnalyzeAttachment[] = []
-  try {
-    attachments = await loadAttachmentsForAI(user, file)
-    logInfo("analysis.attachments.loaded", {
-      fileId: file.id,
-      filename: file.filename,
-      fileMimeType: file.mimetype,
-      attachmentCount: attachments.length,
-      attachmentTypes: attachments.map((attachment) => attachment.contentType),
-    })
-  } catch (error) {
-    logError("analysis.attachments.error", {
-      fileId: file.id,
-      filename: file.filename,
-      fileMimeType: file.mimetype,
-      error: errorMessage(error),
-    })
-    return { success: false, error: "Failed to retrieve files: " + errorMessage(error) }
-  }
-
-  const prompt = `${buildLLMPrompt(
-    settings.prompt_analyse_new_file || DEFAULT_PROMPT_ANALYSE_NEW_FILE,
-    fields,
-    categories,
-    projects
-  )}
-
-${buildAccountingContext({ accounts, taxCodes, paymentMethods })}`
-
-  const schema = fieldsToJsonSchema(fields)
-
-  const results = await analyzeTransaction(prompt, schema, attachments, file.id, user.id)
-
-  logInfo("analysis.result", {
-    fileId: file.id,
-    success: results.success,
-    hasData: Boolean(results.data),
-    error: results.success ? undefined : results.error,
-  })
-
-  if (results.data?.tokensUsed && results.data.tokensUsed > 0) {
-    await updateUser(user.id, { aiBalance: { decrement: 1 } })
-  }
-
-  return results
-}
 
 export async function saveFileAsTransactionAction(
   _prevState: ActionState<Transaction> | null,
@@ -132,18 +45,29 @@ export async function saveFileAsTransactionAction(
     const file = await getFileById(fileId, user.id)
     if (!file) throw new Error("File not found")
 
-    // Create transaction
-    const organization = await ensureActiveOrganization(user)
-    const accountingSuggestion = validatedForm.data.accountingSuggestion as AccountingSuggestion | null
-    const duplicate = await findLikelyDuplicateTransaction(user.id, validatedForm.data)
-    if (duplicate) {
-      return {
-        success: false,
-        error: `Likely duplicate found: ${duplicate.name || duplicate.merchant || "existing transaction"} for the same amount and date. Review existing transactions before posting.`,
+    const forceSave = formData.get("forceSave") === "true"
+    const transactionData = validatedForm.data
+
+    // --- Deduplication Check ---
+    if (!forceSave) {
+      const existingTransaction = await findDuplicateTransaction(user.id, transactionData)
+
+      if (existingTransaction) {
+        return {
+          success: false,
+          error: "DUPLICATE_FOUND",
+          duplicateData: {
+            existingTransaction: existingTransaction,
+            newTransactionData: transactionData,
+            resumeIndex: 0,
+          },
+        }
       }
     }
 
-    const transaction = await createTransaction(user.id, validatedForm.data)
+    const transaction = await createTransaction(user.id, transactionData)
+    const organization = await ensureActiveOrganization(user)
+    const accountingSuggestion = transactionData.accountingSuggestion as AccountingSuggestion | null
 
     let journalEntryId: string | undefined
     if (accountingSuggestion) {
@@ -151,11 +75,11 @@ export async function saveFileAsTransactionAction(
         organizationId: organization.id,
         createdById: user.id,
         transactionId: transaction.id,
-        paymentMethodId: validatedForm.data.paymentMethodId,
-        description: validatedForm.data.description || validatedForm.data.name || "Analyzed receipt",
-        postedAt: validatedForm.data.issuedAt ? new Date(validatedForm.data.issuedAt) : new Date(),
+        paymentMethodId: transactionData.paymentMethodId,
+        description: transactionData.description || transactionData.name || "Analyzed receipt",
+        postedAt: transactionData.issuedAt ? new Date(transactionData.issuedAt) : new Date(),
         accountingSuggestion,
-        fallbackAmount: validatedForm.data.convertedTotal || validatedForm.data.total || 0,
+        fallbackAmount: transactionData.convertedTotal || transactionData.total || 0,
       })
       journalEntryId = journalEntry.id
       await createAnalysisAutomationSuggestions(organization.id, transaction.id, accountingSuggestion)
@@ -197,29 +121,6 @@ export async function saveFileAsTransactionAction(
   }
 }
 
-async function findLikelyDuplicateTransaction(userId: string, data: TransactionData) {
-  if (!data.total || !data.issuedAt) return null
-  const issuedAt = new Date(data.issuedAt)
-  const dayStart = new Date(issuedAt)
-  dayStart.setHours(0, 0, 0, 0)
-  const dayEnd = new Date(issuedAt)
-  dayEnd.setHours(23, 59, 59, 999)
-  const identityChecks = [
-    data.merchant ? { merchant: { equals: data.merchant, mode: "insensitive" as const } } : null,
-    data.name ? { name: { equals: data.name, mode: "insensitive" as const } } : null,
-  ].filter((check): check is NonNullable<typeof check> => Boolean(check))
-  if (identityChecks.length === 0) return null
-
-  return prisma.transaction.findFirst({
-    where: {
-      userId,
-      total: data.total,
-      currencyCode: data.currencyCode || undefined,
-      issuedAt: { gte: dayStart, lte: dayEnd },
-      OR: identityChecks,
-    },
-  })
-}
 
 async function createAnalysisAutomationSuggestions(
   organizationId: string,
@@ -246,35 +147,6 @@ async function createAnalysisAutomationSuggestions(
     )
   )
 }
-
-function buildAccountingContext({
-  accounts,
-  taxCodes,
-  paymentMethods,
-}: {
-  accounts: Awaited<ReturnType<typeof getLedgerAccounts>>
-  taxCodes: Awaited<ReturnType<typeof getTaxCodes>>
-  paymentMethods: Awaited<ReturnType<typeof getPaymentMethods>>
-}) {
-  return [
-    "Accounting context for this Alberta Canadian print shop:",
-    "Use CAD values for debits and credits. Preserve original foreign currency in the normal transaction fields.",
-    "If a business purchase was paid with the owner's personal card, credit account 2310 Owing to Owner.",
-    "Only use Canadian GST ITC when GST is actually charged or recoverable. Foreign supplier invoices are usually OUT_OF_SCOPE for GST unless Canadian GST is shown.",
-    "",
-    "Chart of accounts:",
-    ...accounts.map((account) => `- ${account.code}: ${account.name} (${account.type}${account.subtype ? `/${account.subtype}` : ""})`),
-    "",
-    "Tax codes:",
-    ...taxCodes.map((taxCode) => `- ${taxCode.code}: ${taxCode.name} (${taxCode.rateBasisPoints / 100}%)`),
-    "",
-    "Payment methods:",
-    ...paymentMethods.map((method) => `- ${method.name}`),
-    "",
-    "Automation checks to consider: vendor creation/matching, duplicate receipt risk, GST review, inventory receipt, print job costing, fixed asset capitalization, owner reimbursement, payment method memory, foreign exchange notes, cash flow due dates, and document routing.",
-  ].join("\n")
-}
-
 
 export async function deleteUnsortedFileAction(
   _prevState: ActionState<Transaction> | null,
