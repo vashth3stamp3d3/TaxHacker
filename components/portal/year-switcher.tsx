@@ -7,11 +7,11 @@ export function YearSwitcher({
   years,
 }: {
   year: number
-  years: Array<number | { year: number; isClosed?: boolean }>
+  years: Array<number | { year: number; isClosed?: boolean; isFiled?: boolean }>
 }) {
   const pathname = usePathname()
   const options = years.map((candidate) =>
-    typeof candidate === "number" ? { year: candidate, isClosed: false } : candidate
+    typeof candidate === "number" ? { year: candidate, isClosed: false, isFiled: false } : candidate
   )
 
   return (
@@ -29,7 +29,7 @@ export function YearSwitcher({
       >
         {options.map((candidate) => (
           <option key={candidate.year} value={candidate.year}>
-            {candidate.year} · {candidate.isClosed ? "closed" : "open"}
+            {candidate.year} · {candidate.isFiled ? "filed" : candidate.isClosed ? "closed" : "open"}
           </option>
         ))}
       </select>

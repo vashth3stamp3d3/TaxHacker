@@ -10,15 +10,25 @@ type SnapshotLine = {
   creditCents?: number
 }
 
-export function LedgerSnapshotsCard({ snapshots }: { snapshots: LedgerBalanceSnapshot[] }) {
+export function LedgerSnapshotsCard({
+  snapshots,
+  year,
+}: {
+  snapshots: LedgerBalanceSnapshot[]
+  year?: number
+}) {
   if (snapshots.length === 0) return null
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Imported beginning and ending balances</CardTitle>
+        <CardTitle>Opening and ending balances</CardTitle>
         <CardDescription>
-          v5 is the beginning snapshot. FP36 is the ending snapshot and the posted historical general ledger.
+          {year === 2024
+            ? "2024 opening is the first official T2 year. 2024 ending equals 2025 opening."
+            : year === 2025
+              ? "2025 opening is the filed 2024 ending so the years tie."
+              : "Balances for the selected books year."}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
@@ -30,26 +40,30 @@ export function LedgerSnapshotsCard({ snapshots }: { snapshots: LedgerBalanceSna
               <div className="mb-3 text-sm text-muted-foreground">
                 {snapshot.sourceFile} · as of {snapshot.asOf.toISOString().slice(0, 10)}
               </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Account</TableHead>
-                    <TableHead className="text-right">Debit</TableHead>
-                    <TableHead className="text-right">Credit</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lines.map((line) => (
-                    <TableRow key={`${snapshot.id}-${line.accountCode}`}>
-                      <TableCell>
-                        <span className="font-mono">{line.accountCode}</span> {line.name}
-                      </TableCell>
-                      <TableCell className="text-right">{formatMoney(line.debitCents || 0)}</TableCell>
-                      <TableCell className="text-right">{formatMoney(line.creditCents || 0)}</TableCell>
+              {lines.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No opening balance-sheet amounts. 2024 starts from the filed T2.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Account</TableHead>
+                      <TableHead className="text-right">Debit</TableHead>
+                      <TableHead className="text-right">Credit</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {lines.map((line) => (
+                      <TableRow key={`${snapshot.id}-${line.accountCode}`}>
+                        <TableCell>
+                          <span className="font-mono">{line.accountCode}</span> {line.name}
+                        </TableCell>
+                        <TableCell className="text-right">{formatMoney(line.debitCents || 0)}</TableCell>
+                        <TableCell className="text-right">{formatMoney(line.creditCents || 0)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
           )
         })}

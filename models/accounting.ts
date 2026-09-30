@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { YEAR_CLOSE_SOURCE } from "@/lib/tax/t2-2024-filed"
 import { prismaAsOf, prismaDateInYear, workingYearRange } from "@/lib/working-year"
 import { cache } from "react"
 import { writeAuditLog } from "./audit"
@@ -43,6 +44,7 @@ export type AccountBalance = {
   code: string
   name: string
   type: string
+  subtype?: string | null
   normalBalance: string
   debit: number
   credit: number
@@ -299,7 +301,7 @@ export const getTrialBalance = cache(async (organizationId: string, year?: numbe
 })
 
 export const getIncomeStatement = cache(async (organizationId: string, year?: number) => {
-  const balances = await accountBalances(organizationId, prismaDateInYear(year))
+  const balances = await accountBalances(organizationId, prismaDateInYear(year), { excludeSources: [YEAR_CLOSE_SOURCE] })
   const revenue = sumByTypes(balances, ["revenue"])
   const cogs = sumByTypes(balances, ["cogs"])
   const expenses = sumByTypes(balances, ["expense"])
@@ -531,13 +533,20 @@ export const getAccountingPeriods = cache(async (organizationId: string, year?: 
   })
 })
 
-async function accountBalances(organizationId: string, postedAt?: { gte?: Date; lte?: Date }): Promise<AccountBalance[]> {
+async function accountBalances(
+  organizationId: string,
+  postedAt?: { gte?: Date; lte?: Date },
+  options?: { excludeSources?: string[] }
+): Promise<AccountBalance[]> {
   const accounts = await getLedgerAccounts(organizationId)
   const lines = await prisma.journalLine.groupBy({
     by: ["accountId"],
     where: {
       organizationId,
-      journalEntry: postedAt ? { postedAt } : undefined,
+      journalEntry: {
+        ...(postedAt ? { postedAt } : {}),
+        ...(options?.excludeSources?.length ? { source: { notIn: options.excludeSources } } : {}),
+      },
     },
     _sum: {
       debit: true,
@@ -557,6 +566,7 @@ async function accountBalances(organizationId: string, postedAt?: { gte?: Date; 
       code: account.code,
       name: account.name,
       type: account.type,
+      subtype: account.subtype,
       normalBalance: account.normalBalance,
       debit,
       credit,
@@ -568,7 +578,10 @@ async function accountBalances(organizationId: string, postedAt?: { gte?: Date; 
 function sumByTypes(balances: AccountBalance[], types: string[]) {
   return balances
     .filter((balance) => types.includes(balance.type))
-    .reduce((sum, account) => sum + account.balance, 0)
+    .reduce((sum, account) => {
+      const signed = account.subtype === "contra_asset" || account.subtype === "contra_revenue" ? -account.balance : account.balance
+      return sum + signed
+    }, 0)
 }
 
 async function getAccount(organizationId: string, code: string) {

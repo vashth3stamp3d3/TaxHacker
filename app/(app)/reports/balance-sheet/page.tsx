@@ -19,7 +19,10 @@ export default async function BalanceSheetPage() {
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Balance Sheet</h1>
-        <p className="text-muted-foreground">Assets, liabilities, and equity as of {year.year}-12-31, including earlier posted activity.</p>
+        <p className="text-muted-foreground">
+          Assets, liabilities, and equity as of {year.year}-12-31, including earlier posted activity
+          {year.year === 2024 ? ". 2024 ending equals 2025 opening." : "."}
+        </p>
       </div>
       <StatementCard
         title="Summary"

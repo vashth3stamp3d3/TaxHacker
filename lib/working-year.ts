@@ -1,7 +1,8 @@
 import { cookies } from "next/headers"
 
 export const WORKING_YEAR_COOKIE = "formulated_tax_year"
-export const WORKING_YEARS = [2025, 2026] as const
+export const WORKING_YEARS = [2024, 2025, 2026] as const
+export const FILED_WORKING_YEARS = [2024] as const
 export const SEEDED_FISCAL_YEARS = [2023, 2024, 2025, 2026] as const
 export const DEFAULT_WORKING_YEAR = 2025
 
@@ -70,4 +71,8 @@ export function workingYearFilterDates(year: WorkingYear) {
 
 export function shouldKeepFiscalYearOpen(year: number) {
   return isWorkingYear(year)
+}
+
+export function isFiledWorkingYear(year: number) {
+  return FILED_WORKING_YEARS.includes(year as (typeof FILED_WORKING_YEARS)[number])
 }

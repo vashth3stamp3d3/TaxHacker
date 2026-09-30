@@ -67,6 +67,7 @@ export type LedgerBalanceLine = {
 
 export type LedgerWorkbookSnapshot = {
   kind: "beginning" | "ending"
+  year: number
   label: string
   sourceFile: string
   asOf: Date
@@ -247,6 +248,7 @@ export async function loadAccountBalances(workbookPath: string): Promise<LedgerB
 export async function loadBeginningSnapshot(workbookPath = V5_WORKBOOK): Promise<LedgerWorkbookSnapshot> {
   return {
     kind: "beginning",
+    year: 2025,
     label: "Beginning balances — Complete Accounting and Ledger (v5)",
     sourceFile: path.basename(workbookPath),
     asOf: new Date(Date.UTC(2025, 0, 1)),
@@ -257,6 +259,7 @@ export async function loadBeginningSnapshot(workbookPath = V5_WORKBOOK): Promise
 export async function loadEndingSnapshot(workbookPath = FP36_WORKBOOK): Promise<LedgerWorkbookSnapshot> {
   return {
     kind: "ending",
+    year: 2025,
     label: "Ending balances — Updated Accounting and Ledger FP36",
     sourceFile: path.basename(workbookPath),
     asOf: new Date(Date.UTC(2025, 11, 31, 23, 59, 59, 999)),

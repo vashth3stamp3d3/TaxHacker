@@ -8,6 +8,7 @@ import {
   type AdjustmentSection,
   type SavedAdjustment,
 } from "@/lib/tax/t2-worksheet"
+import { YEAR_CLOSE_SOURCE } from "@/lib/tax/t2-2024-filed"
 import { prisma } from "@/lib/db"
 import { getLedgerAccounts } from "@/models/accounting"
 
@@ -24,6 +25,7 @@ export async function getT2Worksheet(organizationId: string, year = DEFAULT_T2_Y
         journalEntry: {
           postedAt: { gte: period.startsAt, lte: period.endsAt },
           status: "posted",
+          source: { not: YEAR_CLOSE_SOURCE },
         },
       },
       select: {

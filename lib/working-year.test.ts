@@ -4,6 +4,7 @@ import { dateForNewPosting, parseWorkingYear, shouldKeepFiscalYearOpen, workingY
 describe("working year", () => {
   it("defaults unknown values to 2025", () => {
     expect(parseWorkingYear("nope")).toBe(2025)
+    expect(parseWorkingYear("2024")).toBe(2024)
     expect(parseWorkingYear("2026")).toBe(2026)
   })
 
@@ -19,9 +20,10 @@ describe("working year", () => {
     expect(dateForNewPosting(year, new Date("2025-06-15T12:00:00Z")).toISOString()).toBe("2025-06-15T12:00:00.000Z")
   })
 
-  it("keeps 2025 and 2026 as the only app-wide working years", () => {
+  it("keeps 2024, 2025, and 2026 as the app-wide working years", () => {
+    expect(shouldKeepFiscalYearOpen(2024)).toBe(true)
     expect(shouldKeepFiscalYearOpen(2025)).toBe(true)
     expect(shouldKeepFiscalYearOpen(2026)).toBe(true)
-    expect(shouldKeepFiscalYearOpen(2024)).toBe(false)
+    expect(shouldKeepFiscalYearOpen(2023)).toBe(false)
   })
 })

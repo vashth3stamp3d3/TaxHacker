@@ -4,6 +4,7 @@ import {
   deleteCustomT2AdjustmentAction,
   saveT2AdjustmentsAction,
 } from "@/app/(app)/taxes/t2/actions"
+import { FiledT2GifiCard } from "@/components/portal/filed-t2-gifi"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -67,9 +68,17 @@ export default async function T2WorksheetPage({
       </div>
 
       <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-        <p className="font-semibold">Planning estimate, not a filed return.</p>
-        <p>{worksheet.disclaimer}</p>
+        <p className="font-semibold">
+          {year === 2024 ? "2024 book income is the filed T2 GIFI." : "Planning estimate, not a filed return."}
+        </p>
+        <p>
+          {year === 2024
+            ? "Schedule 125 sales, cost of sales, and expenses match the 2024 return. Enter Schedule 8 CCA as the deduction against the book amortization add-back. Tax below is still a planning estimate."
+            : worksheet.disclaimer}
+        </p>
       </div>
+
+      <FiledT2GifiCard year={year} />
 
       {savedMessage ? <div className="rounded-lg border bg-muted px-4 py-3 text-sm">{savedMessage}</div> : null}
       {params.error ? <div className="rounded-lg border border-destructive px-4 py-3 text-sm text-destructive">{params.error}</div> : null}

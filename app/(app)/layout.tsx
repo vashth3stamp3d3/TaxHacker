@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { TaxAdvisorChat } from "@/components/tax-advisor/tax-advisor-chat"
 import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
 import config from "@/lib/config"
-import { getWorkingYear, WORKING_YEARS } from "@/lib/working-year"
+import { getWorkingYear, isFiledWorkingYear, WORKING_YEARS } from "@/lib/working-year"
 import { getApps } from "@/app/(app)/apps/common"
 import { getUnsortedFilesCount } from "@/models/files"
 import { ensureActiveOrganization, getWorkingFiscalYears } from "@/models/organizations"
@@ -65,6 +65,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             workingYears={WORKING_YEARS.map((year) => ({
               year,
               isClosed: fiscalYears.find((row) => row.name === String(year))?.isClosed ?? false,
+              isFiled: isFiledWorkingYear(year),
             }))}
             apps={apps.map((app) => ({
               id: app.id,

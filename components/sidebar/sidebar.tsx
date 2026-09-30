@@ -115,7 +115,7 @@ export function AppSidebar({
   apps: SidebarApp[]
   organizationName?: string
   workingYear?: number
-  workingYears?: Array<{ year: number; isClosed: boolean }>
+  workingYears?: Array<{ year: number; isClosed: boolean; isFiled?: boolean }>
 }) {
   const { open, setOpenMobile } = useSidebar()
   const pathname = usePathname()

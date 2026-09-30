@@ -1,4 +1,5 @@
 import { closePeriodAction } from "@/app/(app)/accounting/actions"
+import { FiledT2GifiCard } from "@/components/portal/filed-t2-gifi"
 import { LedgerSnapshotsCard } from "@/components/portal/ledger-snapshots"
 import { PortalPageHeader } from "@/components/portal/page-header"
 import { Button } from "@/components/ui/button"
@@ -31,7 +32,7 @@ export default async function AccountingPage() {
     getGstSummary(organization.id, { from: year.startsAt, to: year.endsAt }),
     getFinancialBreakdown(organization.id, user.id, year.year),
     getAccountingPeriods(organization.id, year.year),
-    getLedgerBalanceSnapshots(organization.id),
+    getLedgerBalanceSnapshots(organization.id, year.year),
   ])
   const activeAccounts = trialBalance.filter((account) => account.balance !== 0).length
 
@@ -42,7 +43,11 @@ export default async function AccountingPage() {
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
         workingYear={year.year}
-        description="Canadian corporation books. Close 2025 yourself when the return is done; 2026 stays open."
+        description={
+          year.year === 2024
+            ? "2024 is the filed T2. Close 2025 yourself when that return is done; 2026 stays open."
+            : "Canadian corporation books. Close 2025 yourself when the return is done; 2026 stays open."
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -72,7 +77,8 @@ export default async function AccountingPage() {
         </Card>
       </div>
 
-      <LedgerSnapshotsCard snapshots={snapshots} />
+      <FiledT2GifiCard year={year.year} />
+      <LedgerSnapshotsCard snapshots={snapshots} year={year.year} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

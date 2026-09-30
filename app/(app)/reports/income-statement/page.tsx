@@ -19,7 +19,10 @@ export default async function IncomeStatementPage() {
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Income Statement</h1>
-        <p className="text-muted-foreground">Canadian corporation revenue, COGS, expenses, and net income for {year.year}.</p>
+        <p className="text-muted-foreground">
+          Canadian corporation revenue, COGS, expenses, and net income for {year.year}
+          {year.year === 2024 ? ". This matches the filed 2024 T2 GIFI." : "."}
+        </p>
       </div>
       <StatementCard
         title="Summary"

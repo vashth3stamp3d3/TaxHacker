@@ -2,9 +2,8 @@
  * Post Formulated Prints historical journal entries from the updated FP36 workbook
  * and log both Excel files as beginning / ending balance snapshots.
  *
- * data/formulated-prints/complete-accounting-and-ledger-v5.xlsx is an earlier
- * revision of the same books. It is stored as the beginning-balance snapshot and
- * is not posted, because those amounts were superseded by FP36.
+ * 2024 books come from the filed T2, not this workbook. This importer keeps 2025+
+ * FP36 journals only.
  *
  * Spreadsheet account codes are mapped onto the app chart:
  *   1600 Equipment -> 1600 Equipment
@@ -27,7 +26,6 @@ import {
   snapshotTotals,
   summarizeEntries,
   type HistoricalEntry,
-  type LedgerWorkbookSnapshot,
 } from "@/lib/formulated-prints-ledger"
 import { applyFormulatedPrintsIdentity, seedOrganizationDefaults } from "@/models/organizations"
 
@@ -55,7 +53,8 @@ async function postEntries(entries: HistoricalEntry[]) {
     where: { organizationId: identified.id, role: { in: ["superuser", "owner"] } },
   })
 
-  for (const entry of entries) {
+  const liveEntries = entries.filter((entry) => entry.postedAt.getUTCFullYear() >= 2025)
+  for (const entry of liveEntries) {
     const existing = await prisma.journalEntry.findUnique({
       where: { organizationId_entryNumber: { organizationId: identified.id, entryNumber: entry.entryNumber } },
     })
@@ -87,28 +86,6 @@ async function postEntries(entries: HistoricalEntry[]) {
   }
 
   return identified
-}
-
-async function saveSnapshots(organizationId: string, snapshots: LedgerWorkbookSnapshot[]) {
-  for (const snapshot of snapshots) {
-    await prisma.ledgerBalanceSnapshot.upsert({
-      where: { organizationId_kind: { organizationId, kind: snapshot.kind } },
-      update: {
-        label: snapshot.label,
-        sourceFile: snapshot.sourceFile,
-        asOf: snapshot.asOf,
-        lines: snapshot.lines,
-      },
-      create: {
-        organizationId,
-        kind: snapshot.kind,
-        label: snapshot.label,
-        sourceFile: snapshot.sourceFile,
-        asOf: snapshot.asOf,
-        lines: snapshot.lines,
-      },
-    })
-  }
 }
 
 async function main() {
@@ -146,8 +123,9 @@ async function main() {
   }
 
   const organization = await postEntries(entries)
-  await saveSnapshots(organization.id, [beginning, ending])
-  console.log(`Posted ${entries.length} FP36 entries and logged beginning/ending balances for ${organization.name}`)
+  console.log(
+    `Posted ${entries.filter((entry) => entry.postedAt.getUTCFullYear() >= 2025).length} FP36 2025+ entries for ${organization.name}. 2024 is the filed T2, not this workbook.`
+  )
 }
 
 const isDirectRun = process.argv[1]?.includes("import-formulated-prints-ledger")

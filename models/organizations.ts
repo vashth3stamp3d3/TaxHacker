@@ -385,10 +385,10 @@ export async function getWorkingFiscalYears(organizationId: string) {
   })
 }
 
-export async function getLedgerBalanceSnapshots(organizationId: string) {
+export async function getLedgerBalanceSnapshots(organizationId: string, year?: number) {
   return prisma.ledgerBalanceSnapshot.findMany({
-    where: { organizationId },
-    orderBy: { asOf: "asc" },
+    where: { organizationId, ...(year ? { year } : {}) },
+    orderBy: [{ year: "asc" }, { asOf: "asc" }, { kind: "asc" }],
   })
 }
 
