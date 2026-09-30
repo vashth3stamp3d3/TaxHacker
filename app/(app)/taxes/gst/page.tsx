@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
 import { formatMoney } from "@/models/accounting"
+import { dateForNewPosting, getWorkingYear } from "@/lib/working-year"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { getGstRegister, getTaxFilingPeriods, getTaxRemittances, selectGstFilingPeriod } from "@/models/tax"
 
@@ -20,8 +21,9 @@ export default async function GstPage({
   const params = await searchParams
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const periods = await getTaxFilingPeriods(organization.id)
-  const selected = selectGstFilingPeriod(periods, params.period)
+  const year = await getWorkingYear()
+  const periods = await getTaxFilingPeriods(organization.id, year.year)
+  const selected = selectGstFilingPeriod(periods, params.period, dateForNewPosting(year))
   const [register, remittances] = await Promise.all([
     getGstRegister(
       organization.id,
@@ -36,6 +38,7 @@ export default async function GstPage({
         title="GST register"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
+        workingYear={year.year}
         description="Collected GST, ITCs, and remittance from posted journals"
         entityType={selected ? "gst_period" : undefined}
         entityId={selected?.id}

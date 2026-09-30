@@ -14,6 +14,7 @@ import { loadEntitySnapshot, upsertAdvisorThread } from "@/models/advisor"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { getT2Worksheet } from "@/models/t2"
 import { getLLMSettings, getSettings } from "@/models/settings"
+import { getWorkingYear } from "@/lib/working-year"
 import { NextRequest, NextResponse } from "next/server"
 
 const TAX_ADVISOR_MODEL = "gemini-2.5-flash"
@@ -62,7 +63,7 @@ function buildPrompt(messages: ChatMessage[], pageContext: string, craContext: s
     .join("\n\n")
 
   return [
-    "You are the Formulated Tax Canadian tax advisor for an Alberta corporate print shop ERP.",
+    "You are the Formulated Tax Canadian tax advisor for Formulated Prints, a Canadian corporation in Alberta.",
     "Use the supplied CRA excerpts first, and cite the CRA guide title/source in practical language.",
     "Be clear about whether guidance is about corporation income tax, GST/HST, payroll/source deductions, taxable benefits, or bookkeeping operations.",
     "Alberta has GST at 5% and no HST/PST. Do not invent provincial sales tax rules for Alberta.",
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
       )
       .join("\n\n")
 
-    const worksheetYear = taxYearFromAdvisorUrl((body.pageContext || {}).url)
+    const worksheetYear = taxYearFromAdvisorUrl((body.pageContext || {}).url) ?? (await getWorkingYear()).year
     let worksheetContext = booksContext
     let reconciliationText = ""
     if (worksheetYear) {

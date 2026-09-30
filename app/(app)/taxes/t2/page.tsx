@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
 import { centsToDollarInput, formatCents, formatUtcDate } from "@/lib/tax/t2-worksheet"
+import { WORKING_YEARS, getWorkingYear } from "@/lib/working-year"
 import { formatMoney } from "@/models/accounting"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { getT2PageData } from "@/models/t2"
@@ -22,7 +23,7 @@ export const metadata = {
 
 export const dynamic = "force-dynamic"
 
-const YEAR_CHOICES = [2024, 2025, 2026, 2027]
+const YEAR_CHOICES = [...WORKING_YEARS]
 
 export default async function T2WorksheetPage({
   searchParams,
@@ -32,7 +33,8 @@ export default async function T2WorksheetPage({
   const params = await searchParams
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const { year, worksheet, accounts, entries } = await getT2PageData(organization.id, params.year)
+  const workingYear = await getWorkingYear()
+  const { year, worksheet, accounts, entries } = await getT2PageData(organization.id, params.year ?? workingYear.year)
   const additions = worksheet.adjustments.filter((row) => row.section === "schedule1_addition")
   const deductions = worksheet.adjustments.filter((row) => row.section === "schedule1_deduction")
   const taxableDeductions = worksheet.adjustments.filter((row) => row.section === "taxable_income_deduction")

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { taxableTotals } from "@/lib/tax/gst"
+import { prismaDateInYear } from "@/lib/working-year"
 import { cache } from "react"
 import { createBalancedJournalEntry, getNextNumber, getTaxCodes, type JournalLineInput } from "./accounting"
 import { writeAuditLog } from "./audit"
@@ -20,12 +21,20 @@ export const getVendor = cache(async (organizationId: string, id: string) => {
   return prisma.vendor.findFirst({ where: { id, organizationId } })
 })
 
-export const getCustomerInvoices = cache(async (organizationId: string) => {
-  return prisma.customerInvoice.findMany({ where: { organizationId }, orderBy: { issuedAt: "desc" }, take: 100 })
+export const getCustomerInvoices = cache(async (organizationId: string, year?: number) => {
+  return prisma.customerInvoice.findMany({
+    where: { organizationId, issuedAt: prismaDateInYear(year) },
+    orderBy: { issuedAt: "desc" },
+    take: 100,
+  })
 })
 
-export const getVendorBills = cache(async (organizationId: string) => {
-  return prisma.vendorBill.findMany({ where: { organizationId }, orderBy: { issuedAt: "desc" }, take: 100 })
+export const getVendorBills = cache(async (organizationId: string, year?: number) => {
+  return prisma.vendorBill.findMany({
+    where: { organizationId, issuedAt: prismaDateInYear(year) },
+    orderBy: { issuedAt: "desc" },
+    take: 100,
+  })
 })
 
 export const getCustomerInvoice = cache(async (organizationId: string, id: string) => {
@@ -38,12 +47,20 @@ export const getInvoiceLines = cache(async (invoiceId: string) => {
   return prisma.invoiceLine.findMany({ where: { invoiceId }, orderBy: { description: "asc" } })
 })
 
-export const getCustomerPayments = cache(async (organizationId: string) => {
-  return prisma.customerPayment.findMany({ where: { organizationId }, orderBy: { paidAt: "desc" }, take: 100 })
+export const getCustomerPayments = cache(async (organizationId: string, year?: number) => {
+  return prisma.customerPayment.findMany({
+    where: { organizationId, paidAt: prismaDateInYear(year) },
+    orderBy: { paidAt: "desc" },
+    take: 100,
+  })
 })
 
-export const getVendorPayments = cache(async (organizationId: string) => {
-  return prisma.vendorPayment.findMany({ where: { organizationId }, orderBy: { paidAt: "desc" }, take: 100 })
+export const getVendorPayments = cache(async (organizationId: string, year?: number) => {
+  return prisma.vendorPayment.findMany({
+    where: { organizationId, paidAt: prismaDateInYear(year) },
+    orderBy: { paidAt: "desc" },
+    take: 100,
+  })
 })
 
 export async function getDefaultGstRate(organizationId: string) {
@@ -85,12 +102,13 @@ export async function updateVendor(
   return prisma.vendor.update({ where: { id }, data })
 }
 
-export async function getOpenAr(organizationId: string, customerId?: string) {
+export async function getOpenAr(organizationId: string, customerId?: string, year?: number) {
   const invoices = await prisma.customerInvoice.findMany({
     where: {
       organizationId,
       customerId: customerId || undefined,
       status: { in: ["posted", "partial"] },
+      issuedAt: prismaDateInYear(year),
     },
   })
   const payments = await prisma.customerPayment.findMany({
@@ -108,12 +126,13 @@ export async function getOpenAr(organizationId: string, customerId?: string) {
   }))
 }
 
-export async function getOpenAp(organizationId: string, vendorId?: string) {
+export async function getOpenAp(organizationId: string, vendorId?: string, year?: number) {
   const bills = await prisma.vendorBill.findMany({
     where: {
       organizationId,
       vendorId: vendorId || undefined,
       status: { in: ["posted", "partial"] },
+      issuedAt: prismaDateInYear(year),
     },
   })
   const payments = await prisma.vendorPayment.findMany({
@@ -147,6 +166,7 @@ export async function createCustomerInvoiceWithPosting({
   lines,
   salesOrderId,
   sourceFileId,
+  postedAt,
 }: {
   organizationId: string
   customerId?: string
@@ -156,6 +176,7 @@ export async function createCustomerInvoiceWithPosting({
   lines?: DocumentLineInput[]
   salesOrderId?: string
   sourceFileId?: string
+  postedAt?: Date
 }) {
   if (sourceFileId) {
     const existing = await prisma.customerInvoice.findFirst({ where: { organizationId, sourceFileId } })
@@ -205,11 +226,12 @@ export async function createCustomerInvoiceWithPosting({
     })
   }
 
+  const journalDate = postedAt || new Date()
   const journalEntry = await createBalancedJournalEntry({
     organizationId,
     createdById,
     description: `Invoice: ${description}`,
-    postedAt: new Date(),
+    postedAt: journalDate,
     source: "customer_invoice",
     sourceId: sourceFileId,
     lines: journalLines,
@@ -227,7 +249,8 @@ export async function createCustomerInvoiceWithPosting({
       subtotal: totals.subtotal,
       taxTotal: totals.taxTotal,
       total: totals.total,
-      dueAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      issuedAt: journalDate,
+      dueAt: new Date(journalDate.getTime() + 30 * 24 * 60 * 60 * 1000),
     },
   })
 
@@ -266,6 +289,7 @@ export async function createVendorBillWithPosting({
   goodsReceiptId,
   purchaseOrderId,
   warnWithoutGstNumber = true,
+  postedAt,
 }: {
   organizationId: string
   vendorId?: string
@@ -276,6 +300,7 @@ export async function createVendorBillWithPosting({
   goodsReceiptId?: string
   purchaseOrderId?: string
   warnWithoutGstNumber?: boolean
+  postedAt?: Date
 }) {
   if (sourceFileId) {
     const existing = await prisma.vendorBill.findFirst({ where: { organizationId, sourceFileId } })
@@ -311,11 +336,12 @@ export async function createVendorBillWithPosting({
         { accountId: ap.id, debit: 0, credit: totals.total, memo: description },
       ]
 
+  const journalDate = postedAt || new Date()
   const journalEntry = await createBalancedJournalEntry({
     organizationId,
     createdById,
     description: `Vendor bill: ${description}`,
-    postedAt: new Date(),
+    postedAt: journalDate,
     source: "vendor_bill",
     sourceId: sourceFileId,
     lines: journalLines,
@@ -334,7 +360,8 @@ export async function createVendorBillWithPosting({
       subtotal: totals.subtotal,
       taxTotal: totals.taxTotal,
       total: totals.total,
-      dueAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      issuedAt: journalDate,
+      dueAt: new Date(journalDate.getTime() + 30 * 24 * 60 * 60 * 1000),
     },
   })
 
@@ -361,6 +388,7 @@ export async function createCustomerPaymentWithPosting({
   amount,
   memo,
   invoiceId,
+  postedAt,
 }: {
   organizationId: string
   customerId?: string
@@ -368,6 +396,7 @@ export async function createCustomerPaymentWithPosting({
   amount: number
   memo?: string
   invoiceId?: string
+  postedAt?: Date
 }) {
   const payAmount = Math.round(amount)
   if (invoiceId) {
@@ -378,11 +407,12 @@ export async function createCustomerPaymentWithPosting({
   }
 
   const [cash, ar] = await Promise.all([getAccount(organizationId, "1000"), getAccount(organizationId, "1100")])
+  const journalDate = postedAt || new Date()
   const journalEntry = await createBalancedJournalEntry({
     organizationId,
     createdById,
     description: memo || "Customer payment",
-    postedAt: new Date(),
+    postedAt: journalDate,
     source: "customer_payment",
     sourceId: invoiceId,
     lines: [
@@ -392,7 +422,7 @@ export async function createCustomerPaymentWithPosting({
   })
 
   const payment = await prisma.customerPayment.create({
-    data: { organizationId, customerId, invoiceId, journalEntryId: journalEntry.id, amount: payAmount, memo },
+    data: { organizationId, customerId, invoiceId, journalEntryId: journalEntry.id, amount: payAmount, memo, paidAt: journalDate },
   })
 
   if (invoiceId) {
@@ -414,6 +444,7 @@ export async function createVendorPaymentWithPosting({
   amount,
   memo,
   vendorBillId,
+  postedAt,
 }: {
   organizationId: string
   vendorId?: string
@@ -421,6 +452,7 @@ export async function createVendorPaymentWithPosting({
   amount: number
   memo?: string
   vendorBillId?: string
+  postedAt?: Date
 }) {
   const payAmount = Math.round(amount)
   if (vendorBillId) {
@@ -431,11 +463,12 @@ export async function createVendorPaymentWithPosting({
   }
 
   const [ap, cash] = await Promise.all([getAccount(organizationId, "2000"), getAccount(organizationId, "1000")])
+  const journalDate = postedAt || new Date()
   const journalEntry = await createBalancedJournalEntry({
     organizationId,
     createdById,
     description: memo || "Vendor payment",
-    postedAt: new Date(),
+    postedAt: journalDate,
     source: "vendor_payment",
     sourceId: vendorBillId,
     lines: [
@@ -445,7 +478,7 @@ export async function createVendorPaymentWithPosting({
   })
 
   const payment = await prisma.vendorPayment.create({
-    data: { organizationId, vendorId, vendorBillId, journalEntryId: journalEntry.id, amount: payAmount, memo },
+    data: { organizationId, vendorId, vendorBillId, journalEntryId: journalEntry.id, amount: payAmount, memo, paidAt: journalDate },
   })
 
   if (vendorBillId) {

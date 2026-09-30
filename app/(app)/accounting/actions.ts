@@ -11,12 +11,16 @@ export async function createJournalEntryAction(
   formData: FormData
 ): Promise<ActionState<JournalEntry>> {
   try {
-    const { user, organization } = await requirePortalContext("books_write")
+    const { user, organization, postedAt, workingYear } = await requirePortalContext("books_write")
     const amount = Math.round(Number(formData.get("amount") || 0) * 100)
     const debitAccountId = String(formData.get("debitAccountId") || "")
     const creditAccountId = String(formData.get("creditAccountId") || "")
     const description = String(formData.get("description") || "Manual journal entry")
-    const postedAt = new Date(String(formData.get("postedAt") || new Date().toISOString()))
+    const postedOn = String(formData.get("postedAt") || "")
+    let resolvedPostedAt = /^\d{4}-\d{2}-\d{2}$/.test(postedOn) ? new Date(`${postedOn}T12:00:00.000Z`) : postedAt
+    if (resolvedPostedAt < workingYear.startsAt || resolvedPostedAt > workingYear.endsAt) {
+      resolvedPostedAt = postedAt
+    }
 
     if (!amount || amount <= 0) {
       return { success: false, error: "Amount must be greater than zero" }
@@ -26,7 +30,7 @@ export async function createJournalEntryAction(
       organizationId: organization.id,
       createdById: user.id,
       description,
-      postedAt,
+      postedAt: resolvedPostedAt,
       lines: [
         { accountId: debitAccountId, debit: amount, credit: 0, memo: description },
         { accountId: creditAccountId, debit: 0, credit: amount, memo: description },
@@ -47,11 +51,12 @@ export async function createJournalEntryAction(
 }
 
 export async function reverseJournalEntryAction(formData: FormData) {
-  const { user, organization } = await requirePortalContext("books_write")
+  const { user, organization, postedAt } = await requirePortalContext("books_write")
   await reverseJournalEntry({
     organizationId: organization.id,
     journalEntryId: String(formData.get("journalEntryId") || ""),
     createdById: user.id,
+    postedAt,
   })
   revalidatePath("/accounting/journal-entries")
   revalidatePath("/reports")

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator"
 import { getCurrentUser } from "@/lib/auth"
 import config from "@/lib/config"
+import { getWorkingYear } from "@/lib/working-year"
 import { formatMoney, getIncomeStatement } from "@/models/accounting"
 import { getAutomationSuggestions } from "@/models/automation"
 import { getCustomerInvoices, getOpenAp, getOpenAr, getVendorBills } from "@/models/commerce"
@@ -29,16 +30,22 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const filters = await searchParams
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
+  const year = await getWorkingYear()
+  const yearFilters = {
+    ...filters,
+    dateFrom: filters.dateFrom || year.startsAt.toISOString().slice(0, 10),
+    dateTo: filters.dateTo || year.endsAt.toISOString().slice(0, 10),
+  }
   const [unsortedFiles, settings, gst, income, openAr, openAp, jobs, invoices, bills, suggestions] = await Promise.all([
     getUnsortedFiles(user.id, organization.id),
     getSettings(user.id),
-    getGstRegister(organization.id),
-    getIncomeStatement(organization.id),
-    getOpenAr(organization.id),
-    getOpenAp(organization.id),
-    getPrintJobs(organization.id),
-    getCustomerInvoices(organization.id),
-    getVendorBills(organization.id),
+    getGstRegister(organization.id, { from: year.startsAt, to: year.endsAt }),
+    getIncomeStatement(organization.id, year.year),
+    getOpenAr(organization.id, undefined, year.year),
+    getOpenAp(organization.id, undefined, year.year),
+    getPrintJobs(organization.id, year.year),
+    getCustomerInvoices(organization.id, year.year),
+    getVendorBills(organization.id, year.year),
     getAutomationSuggestions(organization.id),
   ])
   const jobsDue = jobs.filter((job) => job.status !== "complete" && job.status !== "cancelled")
@@ -52,6 +59,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         title="Operator cockpit"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
+        workingYear={year.year}
         description="Inbox, books, shop, and GST in one portal"
         actions={
           <Button asChild>
@@ -68,7 +76,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           title="Open AR / AP"
           href="/sales"
           value={`${formatMoney(arBalance)} / ${formatMoney(apBalance)}`}
-          detail={`${invoices.length} invoices · ${bills.length} bills`}
+          detail={`${invoices.length} invoices · ${bills.length} bills in ${year.year}`}
         />
         <CockpitCard title="Jobs in shop" href="/jobs" value={String(jobsDue.length)} detail="Open production jobs" />
         <CockpitCard
@@ -90,7 +98,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
       <Separator />
 
-      <StatsWidget filters={filters} />
+      <StatsWidget filters={yearFilters} />
     </div>
   )
 }

@@ -17,7 +17,7 @@ export async function createPrintJobAction(formData: FormData) {
 }
 
 export async function addJobMaterialAction(formData: FormData) {
-  const { user, organization } = await requirePortalContext("inventory_consume")
+  const { user, organization, postedAt } = await requirePortalContext("inventory_consume")
   await addJobMaterial({
     organizationId: organization.id,
     createdById: user.id,
@@ -25,6 +25,7 @@ export async function addJobMaterialAction(formData: FormData) {
     itemId: String(formData.get("itemId") || ""),
     quantity: Math.round(Number(formData.get("quantity") || 0)),
     unitCost: formData.get("unitCost") ? Math.round(Number(formData.get("unitCost")) * 100) : undefined,
+    postedAt,
   })
   revalidatePath("/jobs")
   revalidatePath("/inventory")
@@ -44,12 +45,13 @@ export async function addJobLaborAction(formData: FormData) {
 }
 
 export async function advanceJobStatusAction(formData: FormData) {
-  const { user, organization } = await requirePortalContext("shop_write")
+  const { user, organization, postedAt } = await requirePortalContext("shop_write")
   await advancePrintJobStatus(
     organization.id,
     String(formData.get("printJobId") || ""),
     String(formData.get("status") || "in_progress"),
-    user.id
+    user.id,
+    postedAt
   )
   revalidatePath("/jobs")
   revalidatePath("/reports")

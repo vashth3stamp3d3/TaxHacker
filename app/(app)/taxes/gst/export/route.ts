@@ -1,13 +1,15 @@
 import { getCurrentUser } from "@/lib/auth"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { gstRegisterCsv, getGstRegister, getTaxFilingPeriods, selectGstFilingPeriod } from "@/models/tax"
+import { dateForNewPosting, getWorkingYear } from "@/lib/working-year"
 
 export async function GET(request: Request) {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
+  const year = await getWorkingYear()
   const periodId = new URL(request.url).searchParams.get("period")
-  const periods = await getTaxFilingPeriods(organization.id)
-  const selected = selectGstFilingPeriod(periods, periodId)
+  const periods = await getTaxFilingPeriods(organization.id, year.year)
+  const selected = selectGstFilingPeriod(periods, periodId, dateForNewPosting(year))
   const register = await getGstRegister(
     organization.id,
     selected ? { from: selected.startsAt, to: selected.endsAt } : undefined
@@ -15,7 +17,7 @@ export async function GET(request: Request) {
   return new Response(gstRegisterCsv(register), {
     headers: {
       "Content-Type": "text/csv",
-      "Content-Disposition": `attachment; filename="gst-register.csv"`,
+      "Content-Disposition": `attachment; filename="gst-register-${year.year}.csv"`,
     },
   })
 }

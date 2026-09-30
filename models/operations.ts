@@ -1,12 +1,17 @@
 import { prisma } from "@/lib/db"
 import { taxableTotals } from "@/lib/tax/gst"
+import { prismaDateInYear } from "@/lib/working-year"
 import { cache } from "react"
 import { createBalancedJournalEntry, getNextNumber } from "./accounting"
 import { createCustomerInvoiceWithPosting, getDefaultGstRate } from "./commerce"
 import { consumeInventory } from "./inventory"
 
-export const getQuotes = cache(async (organizationId: string) => {
-  return prisma.quote.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 100 })
+export const getQuotes = cache(async (organizationId: string, year?: number) => {
+  return prisma.quote.findMany({
+    where: { organizationId, createdAt: prismaDateInYear(year) },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  })
 })
 
 export const getQuote = cache(async (organizationId: string, id: string) => {
@@ -17,8 +22,12 @@ export const getQuoteLines = cache(async (quoteId: string) => {
   return prisma.quoteLine.findMany({ where: { quoteId } })
 })
 
-export const getSalesOrders = cache(async (organizationId: string) => {
-  return prisma.salesOrder.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 100 })
+export const getSalesOrders = cache(async (organizationId: string, year?: number) => {
+  return prisma.salesOrder.findMany({
+    where: { organizationId, createdAt: prismaDateInYear(year) },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  })
 })
 
 export const getSalesOrder = cache(async (organizationId: string, id: string) => {
@@ -29,24 +38,28 @@ export const getSalesOrderLines = cache(async (salesOrderId: string) => {
   return prisma.salesOrderLine.findMany({ where: { salesOrderId } })
 })
 
-export const getPrintJobs = cache(async (organizationId: string) => {
-  return prisma.printJob.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 100 })
+export const getPrintJobs = cache(async (organizationId: string, year?: number) => {
+  return prisma.printJob.findMany({
+    where: { organizationId, createdAt: prismaDateInYear(year) },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  })
 })
 
 export const getPrintJob = cache(async (organizationId: string, id: string) => {
   return prisma.printJob.findFirst({ where: { id, organizationId } })
 })
 
-export const getJobMaterials = cache(async (organizationId: string, printJobId?: string) => {
+export const getJobMaterials = cache(async (organizationId: string, printJobId?: string, year?: number) => {
   return prisma.jobMaterial.findMany({
-    where: { organizationId, printJobId: printJobId || undefined },
+    where: { organizationId, printJobId: printJobId || undefined, consumedAt: prismaDateInYear(year) },
     orderBy: { consumedAt: "desc" },
   })
 })
 
-export const getJobLabor = cache(async (organizationId: string, printJobId?: string) => {
+export const getJobLabor = cache(async (organizationId: string, printJobId?: string, year?: number) => {
   return prisma.jobLabor.findMany({
-    where: { organizationId, printJobId: printJobId || undefined },
+    where: { organizationId, printJobId: printJobId || undefined, workedAt: prismaDateInYear(year) },
     orderBy: { workedAt: "desc" },
   })
 })
@@ -185,7 +198,12 @@ export async function createSalesOrder({
   return order
 }
 
-export async function convertSalesOrderToInvoice(organizationId: string, salesOrderId: string, createdById?: string) {
+export async function convertSalesOrderToInvoice(
+  organizationId: string,
+  salesOrderId: string,
+  createdById?: string,
+  postedAt?: Date
+) {
   const order = await prisma.salesOrder.findFirst({ where: { id: salesOrderId, organizationId } })
   if (!order) throw new Error("Sales order not found")
   const orderLines = await prisma.salesOrderLine.findMany({ where: { salesOrderId } })
@@ -196,6 +214,7 @@ export async function convertSalesOrderToInvoice(organizationId: string, salesOr
     salesOrderId: order.id,
     description: `Invoice for ${order.orderNumber}`,
     taxableAmount: order.subtotal,
+    postedAt,
     lines: orderLines.length
       ? orderLines.map((line) => ({
           description: line.description,
@@ -249,6 +268,7 @@ export async function addJobMaterial({
   unitCost,
   warehouseId,
   createdById,
+  postedAt,
 }: {
   organizationId: string
   printJobId: string
@@ -257,6 +277,7 @@ export async function addJobMaterial({
   unitCost?: number
   warehouseId?: string
   createdById?: string
+  postedAt?: Date
 }) {
   const warehouse =
     warehouseId ||
@@ -274,6 +295,7 @@ export async function addJobMaterial({
     toWip: true,
     sourceType: "print_job",
     sourceId: printJobId,
+    postedAt,
   })
 
   const material = await prisma.jobMaterial.create({
@@ -283,7 +305,7 @@ export async function addJobMaterial({
       itemId,
       quantity,
       unitCost: consumed.unitCost,
-      consumedAt: new Date(),
+      consumedAt: postedAt || new Date(),
     },
   })
   await updateJobActualCost(printJobId)
@@ -314,7 +336,8 @@ export async function advancePrintJobStatus(
   organizationId: string,
   printJobId: string,
   status: string,
-  createdById?: string
+  createdById?: string,
+  postedAt?: Date
 ) {
   const job = await prisma.printJob.findFirst({ where: { id: printJobId, organizationId } })
   if (!job) throw new Error("Print job not found")
@@ -326,7 +349,7 @@ export async function advancePrintJobStatus(
       organizationId,
       createdById,
       description: `Recognize COGS for ${job.jobNumber}`,
-      postedAt: new Date(),
+      postedAt: postedAt || new Date(),
       source: "print_job_complete",
       sourceId: job.id,
       lines: [

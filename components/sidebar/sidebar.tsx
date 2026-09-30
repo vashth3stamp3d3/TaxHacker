@@ -17,6 +17,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { YearSwitcher } from "@/components/portal/year-switcher"
 import { UserProfile } from "@/lib/auth"
 import config from "@/lib/config"
 import {
@@ -105,12 +106,16 @@ export function AppSidebar({
   isSelfHosted,
   apps,
   organizationName,
+  workingYear,
+  workingYears,
 }: {
   profile: UserProfile
   unsortedFilesCount: number
   isSelfHosted: boolean
   apps: SidebarApp[]
   organizationName?: string
+  workingYear?: number
+  workingYears?: Array<{ year: number; isClosed: boolean }>
 }) {
   const { open, setOpenMobile } = useSidebar()
   const pathname = usePathname()
@@ -132,8 +137,14 @@ export function AppSidebar({
             <div className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
               <span className="truncate font-semibold text-base text-black">Formulated Tax</span>
               <span className="truncate text-xs text-muted-foreground">{organizationName || accountTitle}</span>
+              <span className="truncate text-[11px] text-muted-foreground">Canadian corporation</span>
             </div>
           </Link>
+          {workingYear && workingYears?.length ? (
+            <div className="mt-3 group-data-[collapsible=icon]:hidden">
+              <YearSwitcher year={workingYear} years={workingYears} />
+            </div>
+          ) : null}
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>

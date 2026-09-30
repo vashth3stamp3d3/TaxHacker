@@ -45,25 +45,26 @@ export async function convertQuoteAction(formData: FormData) {
 }
 
 export async function convertOrderAction(formData: FormData) {
-  const { user, organization } = await requirePortalContext("shop_write")
-  await convertSalesOrderToInvoice(organization.id, String(formData.get("salesOrderId") || ""), user.id)
+  const { user, organization, postedAt } = await requirePortalContext("shop_write")
+  await convertSalesOrderToInvoice(organization.id, String(formData.get("salesOrderId") || ""), user.id, postedAt)
   revalidateSales()
 }
 
 export async function createCustomerInvoiceAction(formData: FormData) {
-  const { user, organization } = await requirePortalContext("shop_write")
+  const { user, organization, postedAt } = await requirePortalContext("shop_write")
   await createCustomerInvoiceWithPosting({
     organizationId: organization.id,
     createdById: user.id,
     customerId: String(formData.get("customerId") || "") || undefined,
     description: String(formData.get("description") || "Print shop sale"),
     taxableAmount: Math.round(Number(formData.get("amount") || 0) * 100),
+    postedAt,
   })
   revalidateSales()
 }
 
 export async function createCustomerPaymentAction(formData: FormData) {
-  const { user, organization } = await requirePortalContext("shop_write")
+  const { user, organization, postedAt } = await requirePortalContext("shop_write")
   await createCustomerPaymentWithPosting({
     organizationId: organization.id,
     createdById: user.id,
@@ -71,6 +72,7 @@ export async function createCustomerPaymentAction(formData: FormData) {
     invoiceId: String(formData.get("invoiceId") || "") || undefined,
     amount: Math.round(Number(formData.get("amount") || 0) * 100),
     memo: String(formData.get("memo") || "Customer payment"),
+    postedAt,
   })
   revalidateSales()
 }

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { gstRemittanceAmounts, gstRemittancePosting, selectGstFilingPeriod } from "@/lib/tax/gst"
+import { prismaDateInYear } from "@/lib/working-year"
 import { cache } from "react"
 import { createBalancedJournalEntry, formatMoney, getTaxCodes } from "./accounting"
 import { writeAuditLog } from "./audit"
@@ -17,9 +18,9 @@ export type GstRegisterLine = {
   inputCredit: number
 }
 
-export const getTaxFilingPeriods = cache(async (organizationId: string) => {
+export const getTaxFilingPeriods = cache(async (organizationId: string, year?: number) => {
   return prisma.taxFilingPeriod.findMany({
-    where: { organizationId, taxType: "GST" },
+    where: { organizationId, taxType: "GST", startsAt: prismaDateInYear(year) },
     orderBy: { startsAt: "desc" },
   })
 })

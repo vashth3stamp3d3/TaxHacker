@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { prismaAsOf, prismaDateInYear, workingYearRange } from "@/lib/working-year"
 import { cache } from "react"
 import { writeAuditLog } from "./audit"
 
@@ -100,9 +101,9 @@ export const getPaymentMethods = cache(async (organizationId: string) => {
   })
 })
 
-export const getJournalEntries = cache(async (organizationId: string) => {
+export const getJournalEntries = cache(async (organizationId: string, year?: number) => {
   return prisma.journalEntry.findMany({
-    where: { organizationId },
+    where: { organizationId, postedAt: prismaDateInYear(year) },
     include: { lines: true },
     orderBy: [{ postedAt: "desc" }, { entryNumber: "desc" }],
     take: 100,
@@ -293,39 +294,12 @@ export async function getNextNumber(organizationId: string, code: string) {
   return `${sequence.prefix}${String(sequence.nextNumber).padStart(sequence.padding, "0")}`
 }
 
-export const getTrialBalance = cache(async (organizationId: string): Promise<AccountBalance[]> => {
-  const accounts = await getLedgerAccounts(organizationId)
-  const lines = await prisma.journalLine.groupBy({
-    by: ["accountId"],
-    where: { organizationId },
-    _sum: {
-      debit: true,
-      credit: true,
-    },
-  })
-  const totals = new Map(lines.map((line) => [line.accountId, line._sum]))
-
-  return accounts.map((account) => {
-    const accountTotals = totals.get(account.id)
-    const debit = accountTotals?.debit || 0
-    const credit = accountTotals?.credit || 0
-    const balance = account.normalBalance === "debit" ? debit - credit : credit - debit
-
-    return {
-      accountId: account.id,
-      code: account.code,
-      name: account.name,
-      type: account.type,
-      normalBalance: account.normalBalance,
-      debit,
-      credit,
-      balance,
-    }
-  })
+export const getTrialBalance = cache(async (organizationId: string, year?: number): Promise<AccountBalance[]> => {
+  return accountBalances(organizationId, year ? prismaAsOf(workingYearRange(year)) : undefined)
 })
 
-export const getIncomeStatement = cache(async (organizationId: string) => {
-  const balances = await getTrialBalance(organizationId)
+export const getIncomeStatement = cache(async (organizationId: string, year?: number) => {
+  const balances = await accountBalances(organizationId, prismaDateInYear(year))
   const revenue = sumByTypes(balances, ["revenue"])
   const cogs = sumByTypes(balances, ["cogs"])
   const expenses = sumByTypes(balances, ["expense"])
@@ -340,8 +314,8 @@ export const getIncomeStatement = cache(async (organizationId: string) => {
   }
 })
 
-export const getBalanceSheet = cache(async (organizationId: string) => {
-  const balances = await getTrialBalance(organizationId)
+export const getBalanceSheet = cache(async (organizationId: string, year?: number) => {
+  const balances = await getTrialBalance(organizationId, year)
   const assets = sumByTypes(balances, ["asset"])
   const liabilities = sumByTypes(balances, ["liability"])
   const equity = sumByTypes(balances, ["equity"])
@@ -355,11 +329,11 @@ export const getBalanceSheet = cache(async (organizationId: string) => {
   }
 })
 
-export const getCashFlowStatement = cache(async (organizationId: string) => {
-  const balances = await getTrialBalance(organizationId)
+export const getCashFlowStatement = cache(async (organizationId: string, year?: number) => {
+  const balances = await getTrialBalance(organizationId, year)
   const cashAccounts = balances.filter((balance) => balance.type === "asset" && balance.code.startsWith("10"))
   const netCash = cashAccounts.reduce((sum, account) => sum + account.balance, 0)
-  const incomeStatement = await getIncomeStatement(organizationId)
+  const incomeStatement = await getIncomeStatement(organizationId, year)
 
   return {
     operating: incomeStatement.netIncome,
@@ -400,16 +374,16 @@ export const getGstSummary = cache(async (organizationId: string, range?: { from
   }
 })
 
-export const getFinancialBreakdown = cache(async (organizationId: string, userId: string): Promise<FinancialBreakdown> => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const startsAt = new Date(year, 0, 1)
-  const endsAt = new Date(year, 11, 31, 23, 59, 59, 999)
+export const getFinancialBreakdown = cache(async (organizationId: string, userId: string, yearNumber?: number): Promise<FinancialBreakdown> => {
+  const selected = workingYearRange(yearNumber ?? new Date().getUTCFullYear())
+  const year = selected.year
+  const startsAt = selected.startsAt
+  const endsAt = selected.endsAt
   const accounts = await getLedgerAccounts(organizationId)
   const accountById = new Map(accounts.map((account) => [account.id, account]))
   const monthly = Array.from({ length: 12 }, (_, index) => ({
     month: `${year}-${String(index + 1).padStart(2, "0")}`,
-    label: new Date(year, index, 1).toLocaleString("en-CA", { month: "short" }),
+    label: new Date(Date.UTC(year, index, 1)).toLocaleString("en-CA", { month: "short", timeZone: "UTC" }),
     revenue: 0,
     costs: 0,
     netIncome: 0,
@@ -474,7 +448,7 @@ export const getFinancialBreakdown = cache(async (organizationId: string, userId
     month.netIncome = month.revenue - month.costs
   }
 
-  const elapsedMonthly = monthly.slice(0, now.getMonth() + 1)
+  const elapsedMonthly = monthly
   const ytd = elapsedMonthly.reduce(
     (totals, month) => ({
       revenue: totals.revenue + month.revenue,
@@ -493,10 +467,12 @@ export async function reverseJournalEntry({
   organizationId,
   journalEntryId,
   createdById,
+  postedAt,
 }: {
   organizationId: string
   journalEntryId: string
   createdById?: string
+  postedAt?: Date
 }) {
   const original = await prisma.journalEntry.findFirst({
     where: { id: journalEntryId, organizationId },
@@ -509,7 +485,7 @@ export async function reverseJournalEntry({
     organizationId,
     createdById,
     description: `Reversal of ${original.entryNumber}`,
-    postedAt: new Date(),
+    postedAt: postedAt || new Date(),
     source: "reversal",
     sourceId: original.id,
     reversedEntryId: original.id,
@@ -548,12 +524,46 @@ export async function closeAccountingPeriod(organizationId: string, periodId: st
   return updated
 }
 
-export const getAccountingPeriods = cache(async (organizationId: string) => {
+export const getAccountingPeriods = cache(async (organizationId: string, year?: number) => {
   return prisma.accountingPeriod.findMany({
-    where: { organizationId },
+    where: { organizationId, startsAt: prismaDateInYear(year) },
     orderBy: { startsAt: "desc" },
   })
 })
+
+async function accountBalances(organizationId: string, postedAt?: { gte?: Date; lte?: Date }): Promise<AccountBalance[]> {
+  const accounts = await getLedgerAccounts(organizationId)
+  const lines = await prisma.journalLine.groupBy({
+    by: ["accountId"],
+    where: {
+      organizationId,
+      journalEntry: postedAt ? { postedAt } : undefined,
+    },
+    _sum: {
+      debit: true,
+      credit: true,
+    },
+  })
+  const totals = new Map(lines.map((line) => [line.accountId, line._sum]))
+
+  return accounts.map((account) => {
+    const accountTotals = totals.get(account.id)
+    const debit = accountTotals?.debit || 0
+    const credit = accountTotals?.credit || 0
+    const balance = account.normalBalance === "debit" ? debit - credit : credit - debit
+
+    return {
+      accountId: account.id,
+      code: account.code,
+      name: account.name,
+      type: account.type,
+      normalBalance: account.normalBalance,
+      debit,
+      credit,
+      balance,
+    }
+  })
+}
 
 function sumByTypes(balances: AccountBalance[], types: string[]) {
   return balances

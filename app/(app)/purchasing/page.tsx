@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import { formatMoney } from "@/models/accounting"
 import { getOpenAp, getVendorBills, getVendorPayments, getVendors } from "@/models/commerce"
 import { getGoodsReceipts, getItems, getPurchaseOrders, getWarehouses } from "@/models/inventory"
@@ -18,15 +19,16 @@ export const metadata = {
 export default async function PurchasingPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
+  const year = await getWorkingYear()
   const [vendors, bills, payments, purchaseOrders, receipts, items, warehouses, openAp] = await Promise.all([
     getVendors(organization.id),
-    getVendorBills(organization.id),
-    getVendorPayments(organization.id),
-    getPurchaseOrders(organization.id),
-    getGoodsReceipts(organization.id),
+    getVendorBills(organization.id, year.year),
+    getVendorPayments(organization.id, year.year),
+    getPurchaseOrders(organization.id, year.year),
+    getGoodsReceipts(organization.id, year.year),
     getItems(organization.id),
     getWarehouses(organization.id),
-    getOpenAp(organization.id),
+    getOpenAp(organization.id, undefined, year.year),
   ])
 
   return (
@@ -35,6 +37,7 @@ export default async function PurchasingPage() {
         title="Purchasing"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
+        workingYear={year.year}
         description="PO receives stock to GRNI; vendor bills post AP and GST ITCs"
       />
 

@@ -10,6 +10,7 @@ import { getFields } from "@/models/fields"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { getProjects } from "@/models/projects"
 import { getTransactions, TransactionFilters } from "@/models/transactions"
+import { getWorkingYear } from "@/lib/working-year"
 import { Download, Plus, Upload } from "lucide-react"
 import { Metadata } from "next"
 import { redirect } from "next/navigation"
@@ -25,7 +26,13 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const { page, ...filters } = await searchParams
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const { transactions, total } = await getTransactions(user.id, { ...filters, organizationId: organization.id }, {
+  const year = await getWorkingYear()
+  const yearFilters = {
+    ...filters,
+    dateFrom: filters.dateFrom || year.startsAt.toISOString().slice(0, 10),
+    dateTo: filters.dateTo || year.endsAt.toISOString().slice(0, 10),
+  }
+  const { transactions, total } = await getTransactions(user.id, { ...yearFilters, organizationId: organization.id }, {
     limit: TRANSACTIONS_PER_PAGE,
     offset: ((page ?? 1) - 1) * TRANSACTIONS_PER_PAGE,
   })

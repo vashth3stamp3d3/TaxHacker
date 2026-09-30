@@ -2,6 +2,7 @@ import { PortalPageHeader } from "@/components/portal/page-header"
 import { TaxAdvisorWorkspace } from "@/components/tax-advisor/tax-advisor-workspace"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import { listAdvisorThreads, getAdvisorThread } from "@/models/advisor"
 import { ensureActiveOrganization } from "@/models/organizations"
 import Link from "next/link"
@@ -14,6 +15,7 @@ export default async function TaxAdvisorPage({ searchParams }: { searchParams: P
   const params = await searchParams
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
+  const workingYear = await getWorkingYear()
   const threads = await listAdvisorThreads(organization.id, user.id)
   const selected = threads.find((thread) => thread.id === params.thread) || null
   const selectedFull = selected ? await getAdvisorThread(organization.id, selected.id) : null
@@ -24,6 +26,7 @@ export default async function TaxAdvisorPage({ searchParams }: { searchParams: P
         title="Tax advisor"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
+        workingYear={workingYear.year}
         description="CRA-backed advisor with books context. Not a filed return or legal sign-off."
       />
       <div className="grid gap-5 lg:grid-cols-[20rem_minmax(0,1fr)]">

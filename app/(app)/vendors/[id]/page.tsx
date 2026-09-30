@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import { formatMoney } from "@/models/accounting"
 import { getOpenAp, getVendor } from "@/models/commerce"
 import { ensureActiveOrganization } from "@/models/organizations"
@@ -15,9 +16,10 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
+  const year = await getWorkingYear()
   const vendor = await getVendor(organization.id, id)
   if (!vendor) notFound()
-  const bills = await getOpenAp(organization.id, vendor.id)
+  const bills = await getOpenAp(organization.id, vendor.id, year.year)
 
   return (
     <div className="flex w-full max-w-5xl flex-col gap-5 self-center p-5">
@@ -25,6 +27,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         title={vendor.name}
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
+        workingYear={year.year}
         description={vendor.gstNumber ? `Vendor GST ${vendor.gstNumber}` : "No GST number on file"}
         entityType="vendor"
         entityId={vendor.id}

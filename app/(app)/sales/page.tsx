@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import { formatMoney } from "@/models/accounting"
 import { getCustomerInvoices, getCustomerPayments, getCustomers, getOpenAr } from "@/models/commerce"
 import { ensureActiveOrganization } from "@/models/organizations"
@@ -25,13 +26,14 @@ export const metadata = {
 export default async function SalesPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
+  const year = await getWorkingYear()
   const [customers, invoices, payments, quotes, salesOrders, openAr] = await Promise.all([
     getCustomers(organization.id),
-    getCustomerInvoices(organization.id),
-    getCustomerPayments(organization.id),
-    getQuotes(organization.id),
-    getSalesOrders(organization.id),
-    getOpenAr(organization.id),
+    getCustomerInvoices(organization.id, year.year),
+    getCustomerPayments(organization.id, year.year),
+    getQuotes(organization.id, year.year),
+    getSalesOrders(organization.id, year.year),
+    getOpenAr(organization.id, undefined, year.year),
   ])
 
   return (
@@ -40,6 +42,7 @@ export default async function SalesPage() {
         title="Sales"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
+        workingYear={year.year}
         description="Quotes convert to orders, orders convert to GST invoices, payments apply to open AR"
       />
 
