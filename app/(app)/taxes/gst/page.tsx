@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getCurrentUser } from "@/lib/auth"
 import { formatMoney } from "@/models/accounting"
 import { ensureActiveOrganization } from "@/models/organizations"
-import { getGstRegister, getTaxFilingPeriods, getTaxRemittances } from "@/models/tax"
+import { getGstRegister, getTaxFilingPeriods, getTaxRemittances, selectGstFilingPeriod } from "@/models/tax"
 
 export const metadata = {
   title: "GST",
@@ -21,12 +21,7 @@ export default async function GstPage({
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
   const periods = await getTaxFilingPeriods(organization.id)
-  const now = new Date()
-  const selected =
-    periods.find((period) => period.id === params.period) ||
-    periods.find((period) => period.startsAt <= now && period.endsAt >= now) ||
-    periods.find((period) => period.status === "open") ||
-    periods[0]
+  const selected = selectGstFilingPeriod(periods, params.period)
   const [register, remittances] = await Promise.all([
     getGstRegister(
       organization.id,

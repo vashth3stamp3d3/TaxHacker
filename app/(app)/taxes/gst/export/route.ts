@@ -1,13 +1,13 @@
 import { getCurrentUser } from "@/lib/auth"
 import { ensureActiveOrganization } from "@/models/organizations"
-import { gstRegisterCsv, getGstRegister, getTaxFilingPeriods } from "@/models/tax"
+import { gstRegisterCsv, getGstRegister, getTaxFilingPeriods, selectGstFilingPeriod } from "@/models/tax"
 
 export async function GET(request: Request) {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
   const periodId = new URL(request.url).searchParams.get("period")
   const periods = await getTaxFilingPeriods(organization.id)
-  const selected = periods.find((period) => period.id === periodId) || periods[0]
+  const selected = selectGstFilingPeriod(periods, periodId)
   const register = await getGstRegister(
     organization.id,
     selected ? { from: selected.startsAt, to: selected.endsAt } : undefined

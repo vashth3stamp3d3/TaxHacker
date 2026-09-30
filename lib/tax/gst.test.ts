@@ -7,6 +7,7 @@ import {
   gstRemittanceJournal,
   gstRemittancePosting,
   inventoryAccountCodeForType,
+  selectGstFilingPeriod,
   inventoryReceiveJournal,
   journalLinesAreBalanced,
   suggestedDestination,
@@ -108,3 +109,24 @@ describe("GST math", () => {
     expect(refundHold.some((line) => line.account === "1000")).toBe(false)
   })
 })
+
+describe("selectGstFilingPeriod", () => {
+  const periods = [
+    { id: "q4", startsAt: new Date("2026-10-01T00:00:00"), endsAt: new Date("2026-12-31T23:59:59"), status: "open" },
+    { id: "q3", startsAt: new Date("2026-07-01T00:00:00"), endsAt: new Date("2026-09-30T23:59:59"), status: "open" },
+    { id: "q2", startsAt: new Date("2026-04-01T00:00:00"), endsAt: new Date("2026-06-30T23:59:59"), status: "filed" },
+  ]
+
+  it("uses an explicit period id", () => {
+    expect(selectGstFilingPeriod(periods, "q4")?.id).toBe("q4")
+  })
+
+  it("defaults to the period that contains today", () => {
+    expect(selectGstFilingPeriod(periods, null, new Date("2026-09-30T12:00:00"))?.id).toBe("q3")
+  })
+
+  it("falls back to the first open period when today is outside the calendar", () => {
+    expect(selectGstFilingPeriod(periods, null, new Date("2025-12-01"))?.id).toBe("q4")
+  })
+})
+

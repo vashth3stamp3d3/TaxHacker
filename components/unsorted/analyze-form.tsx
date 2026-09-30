@@ -142,7 +142,7 @@ export default function AnalyzeForm({
       convertedCurrencyCode: settings.default_currency,
       categoryCode: settings.default_category,
       projectCode: settings.default_project,
-      issuedAt: "",
+      issuedAt: format(new Date(), "yyyy-MM-dd"),
       note: "",
       text: "",
       items: [],

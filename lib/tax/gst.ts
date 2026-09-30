@@ -51,6 +51,19 @@ export function gstRemittancePosting(amounts: GstRemittanceAmounts) {
   }
 }
 
+export function selectGstFilingPeriod<T extends { id: string; startsAt: Date; endsAt: Date; status: string }>(
+  periods: T[],
+  periodId?: string | null,
+  now = new Date()
+) {
+  return (
+    periods.find((period) => period.id === periodId) ||
+    periods.find((period) => period.startsAt <= now && period.endsAt >= now) ||
+    periods.find((period) => period.status === "open") ||
+    periods[0]
+  )
+}
+
 export function lineAmount(quantity: number, unitPrice: number) {
   return Math.max(0, Math.round(quantity) * Math.round(unitPrice))
 }

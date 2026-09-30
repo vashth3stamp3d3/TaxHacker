@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db"
-import { gstRemittanceAmounts, gstRemittancePosting } from "@/lib/tax/gst"
+import { gstRemittanceAmounts, gstRemittancePosting, selectGstFilingPeriod } from "@/lib/tax/gst"
 import { cache } from "react"
 import { createBalancedJournalEntry, formatMoney, getTaxCodes } from "./accounting"
 import { writeAuditLog } from "./audit"
@@ -23,6 +23,8 @@ export const getTaxFilingPeriods = cache(async (organizationId: string) => {
     orderBy: { startsAt: "desc" },
   })
 })
+
+export { selectGstFilingPeriod }
 
 export const getTaxRemittances = cache(async (organizationId: string) => {
   return prisma.taxRemittance.findMany({
