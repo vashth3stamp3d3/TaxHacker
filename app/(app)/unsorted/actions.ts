@@ -14,7 +14,7 @@ import { type DocumentDestination } from "@/lib/tax/gst"
 import { AccountingSuggestion, postReceiptAnalysisJournalEntry } from "@/models/accounting"
 import { requirePortalContext } from "@/models/access"
 import { createCustomer, createCustomerInvoiceWithPosting, createVendor, createVendorBillWithPosting } from "@/models/commerce"
-import { attachDocument, findExistingSourceDocument, matchCustomerByName, matchVendorByName, saveDocumentClassification } from "@/models/documents"
+import { attachDocument, findExistingSourceLinks, matchCustomerByName, matchVendorByName, saveDocumentClassification } from "@/models/documents"
 import { createFile, deleteFile, getFileById, updateFile } from "@/models/files"
 import { createInventoryItem, getItems, getWarehouses, receiveInboxInventory } from "@/models/inventory"
 import {
@@ -47,11 +47,6 @@ export async function saveFileAsTransactionAction(
     const file = await getFileById(fileId, user.id)
     if (!file) throw new Error("File not found")
 
-    const existingSource = await findExistingSourceDocument(organization.id, file.id)
-    if (existingSource) {
-      return { success: false, error: "This file has already been booked into the ERP." }
-    }
-
     const forceSave = formData.get("forceSave") === "true"
     const destination = (String(formData.get("destination") || "paid_expense") || "paid_expense") as DocumentDestination
     const transactionData = {
@@ -62,7 +57,12 @@ export async function saveFileAsTransactionAction(
       postsToLedger: destination === "paid_expense",
     }
 
-    if (!forceSave && destination === "paid_expense") {
+    const existing = await findExistingSourceLinks(organization.id, file.id)
+    if (file.isReviewed && (existing.transaction || existing.bill || existing.invoice || existing.receipt)) {
+      return { success: false, error: "This file has already been booked into the ERP." }
+    }
+
+    if (!forceSave && destination === "paid_expense" && !existing.transaction) {
       const existingTransaction = await findDuplicateTransaction(user.id, transactionData)
       if (existingTransaction) {
         return {
@@ -80,64 +80,70 @@ export async function saveFileAsTransactionAction(
     const merchant = transactionData.merchant || transactionData.name || "Unknown party"
     const amount = transactionData.convertedTotal || transactionData.total || 0
     const accountingSuggestion = transactionData.accountingSuggestion as AccountingSuggestion | null
-    let vendorBillId: string | undefined
-    let customerInvoiceId: string | undefined
-    let goodsReceiptId: string | undefined
+    let vendorBillId: string | undefined = existing.bill?.id
+    let customerInvoiceId: string | undefined = existing.invoice?.id
+    let goodsReceiptId: string | undefined = existing.receipt?.id
     let journalEntryId: string | undefined
 
     if (destination === "vendor_bill") {
-      const vendor =
-        (await matchVendorByName(organization.id, merchant)) ||
-        (await createVendor(organization.id, { name: merchant }))
-      const bill = await createVendorBillWithPosting({
-        organizationId: organization.id,
-        vendorId: vendor.id,
-        createdById: user.id,
-        description: transactionData.description || transactionData.name || merchant,
-        taxableAmount: amount,
-        sourceFileId: file.id,
-      })
-      vendorBillId = bill.id
-    } else if (destination === "customer_invoice") {
-      const customer =
-        (await matchCustomerByName(organization.id, merchant)) ||
-        (await createCustomer(organization.id, { name: merchant }))
-      const invoice = await createCustomerInvoiceWithPosting({
-        organizationId: organization.id,
-        customerId: customer.id,
-        createdById: user.id,
-        description: transactionData.description || transactionData.name || merchant,
-        taxableAmount: amount,
-        sourceFileId: file.id,
-      })
-      customerInvoiceId = invoice.id
-    } else if (destination === "inventory_receipt") {
-      const warehouses = await getWarehouses(organization.id)
-      const warehouseId = String(formData.get("warehouseId") || warehouses[0]?.id || "")
-      if (!warehouseId) throw new Error("Create a warehouse before booking inventory receipts")
-      let itemId = String(formData.get("itemId") || "")
-      if (!itemId) {
-        const items = await getItems(organization.id)
-        const matched = items.find((item) => item.name.toLowerCase() === merchant.toLowerCase())
-        const created = matched || (await createInventoryItem(organization.id, {
-          sku: `INBOX-${Date.now()}`,
-          name: merchant,
-          standardCost: amount,
-        }))
-        itemId = created.id
+      if (!vendorBillId) {
+        const vendor =
+          (await matchVendorByName(organization.id, merchant)) ||
+          (await createVendor(organization.id, { name: merchant }))
+        const bill = await createVendorBillWithPosting({
+          organizationId: organization.id,
+          vendorId: vendor.id,
+          createdById: user.id,
+          description: transactionData.description || transactionData.name || merchant,
+          taxableAmount: amount,
+          sourceFileId: file.id,
+        })
+        vendorBillId = bill.id
       }
-      const received = await receiveInboxInventory({
-        organizationId: organization.id,
-        itemId,
-        warehouseId,
-        quantity: Math.max(1, Number(formData.get("quantity") || 1)),
-        unitCost: amount,
-        createdById: user.id,
-        sourceFileId: file.id,
-      })
-      goodsReceiptId = received.receipt.id
+    } else if (destination === "customer_invoice") {
+      if (!customerInvoiceId) {
+        const customer =
+          (await matchCustomerByName(organization.id, merchant)) ||
+          (await createCustomer(organization.id, { name: merchant }))
+        const invoice = await createCustomerInvoiceWithPosting({
+          organizationId: organization.id,
+          customerId: customer.id,
+          createdById: user.id,
+          description: transactionData.description || transactionData.name || merchant,
+          taxableAmount: amount,
+          sourceFileId: file.id,
+        })
+        customerInvoiceId = invoice.id
+      }
+    } else if (destination === "inventory_receipt") {
+      if (!goodsReceiptId) {
+        const warehouses = await getWarehouses(organization.id)
+        const warehouseId = String(formData.get("warehouseId") || warehouses[0]?.id || "")
+        if (!warehouseId) throw new Error("Create a warehouse before booking inventory receipts")
+        let itemId = String(formData.get("itemId") || "")
+        if (!itemId) {
+          const items = await getItems(organization.id)
+          const matched = items.find((item) => item.name.toLowerCase() === merchant.toLowerCase())
+          const created = matched || (await createInventoryItem(organization.id, {
+            sku: `INBOX-${Date.now()}`,
+            name: merchant,
+            standardCost: amount,
+          }))
+          itemId = created.id
+        }
+        const received = await receiveInboxInventory({
+          organizationId: organization.id,
+          itemId,
+          warehouseId,
+          quantity: Math.max(1, Number(formData.get("quantity") || 1)),
+          unitCost: amount,
+          createdById: user.id,
+          sourceFileId: file.id,
+        })
+        goodsReceiptId = received.receipt.id
+      }
     } else {
-      const transaction = await createTransaction(user.id, transactionData)
+      const transaction = existing.transaction || (await createTransaction(user.id, transactionData))
       if (accountingSuggestion) {
         const journalEntry = await postReceiptAnalysisJournalEntry({
           organizationId: organization.id,
@@ -162,13 +168,15 @@ export async function saveFileAsTransactionAction(
       })
     }
 
-    const archive = await createTransaction(user.id, {
-      ...transactionData,
-      postsToLedger: false,
-      vendorBillId,
-      customerInvoiceId,
-      goodsReceiptId,
-    })
+    const archive =
+      existing.transaction ||
+      (await createTransaction(user.id, {
+        ...transactionData,
+        postsToLedger: false,
+        vendorBillId,
+        customerInvoiceId,
+        goodsReceiptId,
+      }))
 
     return await finalizeInboxFile({
       user,
@@ -213,7 +221,11 @@ async function finalizeInboxFile({
   const oldFullFilePath = safePathJoin(userUploadsDirectory, file.path)
   const newFullFilePath = safePathJoin(userUploadsDirectory, newRelativeFilePath)
   await mkdir(path.dirname(newFullFilePath), { recursive: true })
-  await rename(path.resolve(oldFullFilePath), path.resolve(newFullFilePath))
+  try {
+    await rename(path.resolve(oldFullFilePath), path.resolve(newFullFilePath))
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+  }
 
   await updateFile(file.id, user.id, {
     path: newRelativeFilePath,

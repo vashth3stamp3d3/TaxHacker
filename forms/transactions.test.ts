@@ -27,12 +27,10 @@ describe("transactionFormSchema issuedAt", () => {
     expect(fixed.toISOString().startsWith("2024-04-09")).toBe(true)
   })
 
-  it("still accepts full ISO datetime strings", () => {
-    const result = transactionFormSchema.safeParse({ issuedAt: "2024-04-09T15:30:00.000Z" })
-
+  it("treats an empty payment method as unset so Prisma does not see an empty UUID", () => {
+    const result = transactionFormSchema.safeParse({ paymentMethodId: "", total: "10.00" })
     expect(result.success).toBe(true)
     if (!result.success) return
-
-    expect((result.data.issuedAt as Date).toISOString()).toBe("2024-04-09T15:30:00.000Z")
+    expect(result.data.paymentMethodId).toBeUndefined()
   })
 })

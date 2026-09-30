@@ -190,6 +190,18 @@ export const createTransaction = async (userId: string, data: TransactionData): 
   if (standard.accountingSuggestion === null) {
     delete standard.accountingSuggestion
   }
+  const uuidKeys = [
+    "paymentMethodId",
+    "journalEntryId",
+    "organizationId",
+    "sourceFileId",
+    "vendorBillId",
+    "customerInvoiceId",
+    "goodsReceiptId",
+  ] as const
+  for (const key of uuidKeys) {
+    if (standard[key] === "") delete standard[key]
+  }
   const createData = {
     ...standard,
     extra: extra,

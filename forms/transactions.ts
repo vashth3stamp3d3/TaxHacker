@@ -54,7 +54,10 @@ export const transactionFormSchema = z
       ])
       .optional(),
     text: z.string().optional(),
-    paymentMethodId: z.string().optional(),
+    paymentMethodId: z
+      .string()
+      .optional()
+      .transform((val) => (val && val.trim() !== "" ? val : undefined)),
     accountingSuggestion: z
       .string()
       .optional()

@@ -60,14 +60,19 @@ export async function getLatestClassification(fileId: string) {
   })
 }
 
-export async function findExistingSourceDocument(organizationId: string, sourceFileId: string) {
+export async function findExistingSourceLinks(organizationId: string, sourceFileId: string) {
   const [transaction, bill, invoice, receipt] = await Promise.all([
     prisma.transaction.findFirst({ where: { organizationId, sourceFileId } }),
     prisma.vendorBill.findFirst({ where: { organizationId, sourceFileId } }),
     prisma.customerInvoice.findFirst({ where: { organizationId, sourceFileId } }),
     prisma.goodsReceipt.findFirst({ where: { organizationId, sourceFileId } }),
   ])
-  return transaction || bill || invoice || receipt
+  return { transaction, bill, invoice, receipt }
+}
+
+export async function findExistingSourceDocument(organizationId: string, sourceFileId: string) {
+  const links = await findExistingSourceLinks(organizationId, sourceFileId)
+  return links.transaction || links.bill || links.invoice || links.receipt
 }
 
 export async function matchVendorByName(organizationId: string, name?: string | null) {
