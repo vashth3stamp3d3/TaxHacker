@@ -24,6 +24,13 @@ export type TransactionData = {
   journalEntryId?: string | null
   paymentMethodId?: string | null
   accountingSuggestion?: Prisma.InputJsonValue | null
+  organizationId?: string | null
+  postsToLedger?: boolean
+  destinationType?: string | null
+  sourceFileId?: string | null
+  vendorBillId?: string | null
+  customerInvoiceId?: string | null
+  goodsReceiptId?: string | null
   [key: string]: unknown
 }
 
@@ -36,6 +43,7 @@ export type TransactionFilters = {
   projectCode?: string
   type?: string
   page?: number
+  organizationId?: string
 }
 
 export type TransactionPagination = {
@@ -52,7 +60,9 @@ export const getTransactions = cache(
     transactions: Transaction[]
     total: number
   }> => {
-    const where: Prisma.TransactionWhereInput = { userId }
+    const where: Prisma.TransactionWhereInput = filters?.organizationId
+      ? { OR: [{ organizationId: filters.organizationId }, { userId, organizationId: null }] }
+      : { userId }
     let orderBy: Prisma.TransactionOrderByWithRelationInput = { issuedAt: "desc" }
 
     if (filters) {
@@ -143,15 +153,33 @@ export const findDuplicateTransaction = async (userId: string, data: Transaction
   if (standard.total && standard.merchant && standard.issuedAt) {
     const existingTransaction = await prisma.transaction.findFirst({
       where: {
-        userId: userId,
+        ...(standard.organizationId ? { organizationId: standard.organizationId } : { userId }),
         total: standard.total,
         merchant: standard.merchant,
         issuedAt: standard.issuedAt,
         currencyCode: currencyCode,
       },
     })
+    if (existingTransaction) return existingTransaction
+  }
 
-    return existingTransaction
+  if (standard.organizationId && standard.total && standard.issuedAt) {
+    const existingBill = await prisma.vendorBill.findFirst({
+      where: {
+        organizationId: standard.organizationId,
+        total: standard.total,
+        issuedAt: standard.issuedAt instanceof Date ? standard.issuedAt : new Date(String(standard.issuedAt)),
+      },
+    })
+    if (existingBill) {
+      return {
+        id: existingBill.id,
+        name: existingBill.billNumber,
+        merchant: "Vendor bill",
+        total: existingBill.total,
+        issuedAt: existingBill.issuedAt,
+      } as Transaction
+    }
   }
 
   return null
@@ -269,6 +297,13 @@ const splitTransactionDataExtraFields = async (
     "journalEntryId",
     "paymentMethodId",
     "accountingSuggestion",
+    "organizationId",
+    "postsToLedger",
+    "destinationType",
+    "sourceFileId",
+    "vendorBillId",
+    "customerInvoiceId",
+    "goodsReceiptId",
   ])
 
   Object.entries(data).forEach(([key, value]) => {

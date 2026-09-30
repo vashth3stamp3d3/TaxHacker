@@ -1,9 +1,8 @@
 "use server"
 
 import { ActionState } from "@/lib/actions"
-import { getCurrentUser } from "@/lib/auth"
-import { createBalancedJournalEntry } from "@/models/accounting"
-import { ensureActiveOrganization } from "@/models/organizations"
+import { closeAccountingPeriod, createBalancedJournalEntry, reverseJournalEntry } from "@/models/accounting"
+import { requirePortalContext } from "@/models/access"
 import { JournalEntry } from "@/prisma/client"
 import { revalidatePath } from "next/cache"
 
@@ -12,8 +11,7 @@ export async function createJournalEntryAction(
   formData: FormData
 ): Promise<ActionState<JournalEntry>> {
   try {
-    const user = await getCurrentUser()
-    const organization = await ensureActiveOrganization(user)
+    const { user, organization } = await requirePortalContext("books_write")
     const amount = Math.round(Number(formData.get("amount") || 0) * 100)
     const debitAccountId = String(formData.get("debitAccountId") || "")
     const creditAccountId = String(formData.get("creditAccountId") || "")
@@ -46,4 +44,23 @@ export async function createJournalEntryAction(
     console.error("Failed to create journal entry:", error)
     return { success: false, error: error instanceof Error ? error.message : "Failed to create journal entry" }
   }
+}
+
+export async function reverseJournalEntryAction(formData: FormData) {
+  const { user, organization } = await requirePortalContext("books_write")
+  await reverseJournalEntry({
+    organizationId: organization.id,
+    journalEntryId: String(formData.get("journalEntryId") || ""),
+    createdById: user.id,
+  })
+  revalidatePath("/accounting/journal-entries")
+  revalidatePath("/reports")
+  revalidatePath("/taxes/gst")
+}
+
+export async function closePeriodAction(formData: FormData) {
+  const { user, organization } = await requirePortalContext("period_close")
+  await closeAccountingPeriod(organization.id, String(formData.get("periodId") || ""), user.id)
+  revalidatePath("/accounting")
+  revalidatePath("/accounting/journal-entries")
 }

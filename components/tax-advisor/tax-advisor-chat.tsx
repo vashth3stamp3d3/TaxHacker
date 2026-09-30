@@ -30,12 +30,15 @@ function capturePageContext() {
   const visibleText = (main.innerText || document.body.innerText || "")
     .replace(/\s+/g, " ")
     .slice(0, 6000)
+  const entity = document.querySelector("[data-entity-type]") as HTMLElement | null
 
   return {
     url: window.location.pathname + window.location.search,
     title: document.title,
     selectedText: window.getSelection()?.toString().slice(0, 1500) || "",
     visibleText,
+    entityType: entity?.dataset.entityType,
+    entityId: entity?.dataset.entityId,
   }
 }
 
@@ -50,6 +53,7 @@ export function TaxAdvisorChat() {
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [sources, setSources] = useState<ChatSource[]>([])
+  const [threadId, setThreadId] = useState<string | undefined>()
   const [position, setPosition] = useState<Position>({ x: 24, y: 24 })
   const dragStart = useRef<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null)
 
@@ -114,7 +118,12 @@ export function TaxAdvisorChat() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           messages: nextMessages,
+          threadId,
           pageContext: capturePageContext(),
+          entityRef: {
+            type: capturePageContext().entityType,
+            id: capturePageContext().entityId,
+          },
         }),
       })
       const result = await response.json()
@@ -125,6 +134,7 @@ export function TaxAdvisorChat() {
 
       setMessages([...nextMessages, { role: "assistant", content: result.answer || "I could not produce an answer." }])
       setSources(result.sources || [])
+      if (result.threadId) setThreadId(result.threadId)
     } catch (error) {
       setMessages([
         ...nextMessages,

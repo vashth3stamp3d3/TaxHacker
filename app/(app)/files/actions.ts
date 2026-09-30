@@ -1,14 +1,15 @@
 "use server"
 
 import { ActionState } from "@/lib/actions"
-import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
+import { isSubscriptionExpired } from "@/lib/auth"
+import { requirePortalContext } from "@/models/access"
 import { getDirectorySize, getUserUploadsDirectory, isEnoughStorageToUploadFile } from "@/lib/files"
 import { ingestUnsortedFile } from "@/lib/uploads"
 import { updateUser } from "@/models/users"
 import { revalidatePath } from "next/cache"
 
 export async function uploadFilesAction(formData: FormData): Promise<ActionState<null>> {
-  const user = await getCurrentUser()
+  const { user } = await requirePortalContext("inbox_review")
   const files = formData.getAll("files") as File[]
 
   // Check limits

@@ -1,3 +1,4 @@
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser } from "@/lib/auth"
@@ -30,10 +31,17 @@ export default async function ReportsPage() {
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
-        <p className="text-muted-foreground">Financial statements powered by the general ledger.</p>
-      </div>
+      <PortalPageHeader
+        title="Reports"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description="Statements and GST from the general ledger"
+        actions={
+          <Button asChild variant="outline">
+            <a href="/reports/trial-balance/export">Export trial balance</a>
+          </Button>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>

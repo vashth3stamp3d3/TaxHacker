@@ -1,9 +1,9 @@
 "use server"
 
 import { ActionState } from "@/lib/actions"
-import { getCurrentUser } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { getUserUploadsDirectory, safePathJoin } from "@/lib/files"
+import { requirePortalContext } from "@/models/access"
 import { MODEL_BACKUP, modelFromJSON } from "@/models/backups"
 import { DEFAULT_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_FIELDS, DEFAULT_SETTINGS } from "@/models/defaults"
 import fs from "fs/promises"
@@ -23,7 +23,7 @@ export async function restoreBackupAction(
   _prevState: ActionState<BackupRestoreResult> | null,
   formData: FormData
 ): Promise<ActionState<BackupRestoreResult>> {
-  const user = await getCurrentUser()
+  const { user } = await requirePortalContext("backups")
   const userUploadsDirectory = getUserUploadsDirectory(user)
   const file = formData.get("file") as File
 
@@ -165,7 +165,7 @@ async function cleanupUserTables(userId: string) {
 }
 
 export async function resetLLMSettingsAction() {
-  const user = await getCurrentUser()
+  const { user } = await requirePortalContext("backups")
   const llmSettings = DEFAULT_SETTINGS.filter((setting) => setting.code === "prompt_analyse_new_file")
 
   for (const setting of llmSettings) {
@@ -180,7 +180,7 @@ export async function resetLLMSettingsAction() {
 }
 
 export async function resetFieldsAndCategoriesAction() {
-  const user = await getCurrentUser()
+  const { user } = await requirePortalContext("backups")
 
   for (const category of DEFAULT_CATEGORIES) {
     await prisma.category.upsert({

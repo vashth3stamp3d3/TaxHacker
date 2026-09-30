@@ -16,8 +16,8 @@ import { NotificationProvider } from "./context"
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | TaxHacker",
-    default: config.app.title,
+        template: "%s | Formulated Tax",
+    default: "Formulated Tax",
   },
   description: config.app.description,
   icons: {
@@ -35,7 +35,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const [unsortedFilesCount, apps] = await Promise.all([getUnsortedFilesCount(user.id), getApps()])
+  const [unsortedFilesCount, apps] = await Promise.all([getUnsortedFilesCount(user.id, organization.id), getApps()])
 
   const userProfile = {
     id: user.id,

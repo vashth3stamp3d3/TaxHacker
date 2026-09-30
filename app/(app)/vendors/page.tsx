@@ -1,4 +1,5 @@
 import { createVendorAction } from "@/app/(app)/vendors/actions"
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -7,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getCurrentUser } from "@/lib/auth"
 import { getVendors } from "@/models/commerce"
 import { ensureActiveOrganization } from "@/models/organizations"
+import Link from "next/link"
 
 export const metadata = {
   title: "Vendors",
@@ -19,10 +21,12 @@ export default async function VendorsPage() {
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Vendors</h1>
-        <p className="text-muted-foreground">Vendor master data for purchasing, AP, and GST input credits.</p>
-      </div>
+      <PortalPageHeader
+        title="Vendors"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description="GST numbers are required before claiming ITCs"
+      />
       <Card>
         <CardHeader>
           <CardTitle>Add vendor</CardTitle>
@@ -73,7 +77,11 @@ export default async function VendorsPage() {
               {vendors.map((vendor) => (
                 <TableRow key={vendor.id}>
                   <TableCell className="font-mono">{vendor.code}</TableCell>
-                  <TableCell>{vendor.name}</TableCell>
+                  <TableCell>
+                    <Link href={`/vendors/${vendor.id}`} className="font-medium underline-offset-4 hover:underline">
+                      {vendor.name}
+                    </Link>
+                  </TableCell>
                   <TableCell>{vendor.email}</TableCell>
                   <TableCell>{vendor.phone}</TableCell>
                   <TableCell>{vendor.gstNumber}</TableCell>

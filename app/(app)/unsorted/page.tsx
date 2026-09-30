@@ -1,5 +1,6 @@
 import { FilePreview } from "@/components/files/preview"
 import { UploadButton } from "@/components/files/upload-button"
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -13,6 +14,7 @@ import { getCategories } from "@/models/categories"
 import { getCurrencies } from "@/models/currencies"
 import { getFields } from "@/models/fields"
 import { getUnsortedFiles } from "@/models/files"
+import { getItems, getWarehouses } from "@/models/inventory"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { getProjects } from "@/models/projects"
 import { getAnalyzeConcurrency, getSettings } from "@/models/settings"
@@ -28,8 +30,9 @@ export const metadata: Metadata = {
 export default async function UnsortedPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const [files, categories, projects, currencies, fields, settings, ledgerAccounts, paymentMethods] = await Promise.all([
-    getUnsortedFiles(user.id),
+  const [files, categories, projects, currencies, fields, settings, ledgerAccounts, paymentMethods, items, warehouses] =
+    await Promise.all([
+    getUnsortedFiles(user.id, organization.id),
     getCategories(user.id),
     getProjects(user.id),
     getCurrencies(user.id),
@@ -37,11 +40,19 @@ export default async function UnsortedPage() {
     getSettings(user.id),
     getLedgerAccounts(organization.id),
     getPaymentMethods(organization.id),
+    getItems(organization.id),
+    getWarehouses(organization.id),
   ])
   const analyzeConcurrency = getAnalyzeConcurrency(settings)
 
   return (
     <>
+      <PortalPageHeader
+        title="Inbox"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description={`${files.length} documents waiting for review`}
+      />
       <header className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">You have {files.length} unsorted files</h2>
         <div className="flex items-center gap-3">
@@ -94,6 +105,8 @@ export default async function UnsortedPage() {
                 settings={settings}
                 ledgerAccounts={ledgerAccounts}
                 paymentMethods={paymentMethods}
+                items={items}
+                warehouses={warehouses}
                 analyzeConcurrency={analyzeConcurrency}
               />
             </div>

@@ -1,4 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { getCurrentUser } from "@/lib/auth"
 import { getTrialBalance } from "@/models/accounting"
 import { ensureActiveOrganization } from "@/models/organizations"
@@ -15,10 +17,17 @@ export default async function TrialBalancePage() {
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Trial Balance</h1>
-        <p className="text-muted-foreground">All ledger account debits, credits, and normal balances.</p>
-      </div>
+      <PortalPageHeader
+        title="Trial balance"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description="All ledger account debits, credits, and normal balances"
+        actions={
+          <Button asChild variant="outline">
+            <a href="/reports/trial-balance/export">Export CSV</a>
+          </Button>
+        }
+      />
       <Card>
         <CardHeader>
           <CardTitle>Accounts</CardTitle>

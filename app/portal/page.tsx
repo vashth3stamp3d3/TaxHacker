@@ -21,7 +21,9 @@ export default async function PortalPage({ searchParams }: PortalPageProps) {
         <CardHeader className="items-center text-center">
           <Image src="/logo/512.png" alt="Formulated Tax" width={96} height={96} className="h-24 w-24" priority />
           <CardTitle className="text-2xl">Formulated Tax Portal</CardTitle>
-          <CardDescription>Enter the portal password to access this private ERP.</CardDescription>
+          <CardDescription>
+            Site password for this private operator ERP. User sign-in still identifies who books the work.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form action="/portal/unlock" method="post" className="flex flex-col gap-4">

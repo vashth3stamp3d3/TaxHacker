@@ -1,19 +1,17 @@
 "use server"
 
 import { createBalancedJournalEntry } from "@/models/accounting"
+import { requirePortalContext } from "@/models/access"
 import { addCustomT2Adjustment, deleteCustomT2Adjustment, saveT2Adjustments } from "@/models/t2"
-import { getCurrentUser } from "@/lib/auth"
 import { fiscalPeriodForYear, parseDollarsToCents, parseTaxYear, type AdjustmentSection } from "@/lib/tax/t2-worksheet"
 import { prisma } from "@/lib/db"
-import { ensureActiveOrganization } from "@/models/organizations"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 export async function saveT2AdjustmentsAction(formData: FormData) {
   const year = parseTaxYear(formData.get("year"))
   try {
-    const user = await getCurrentUser()
-    const organization = await ensureActiveOrganization(user)
+    const { organization } = await requirePortalContext("books_write")
     const rows = [...formData.entries()]
       .filter(([key]) => key.startsWith("amount_"))
       .map(([key, value]) => {
@@ -38,8 +36,7 @@ export async function saveT2AdjustmentsAction(formData: FormData) {
 export async function addCustomT2AdjustmentAction(formData: FormData) {
   const year = parseTaxYear(formData.get("year"))
   try {
-    const user = await getCurrentUser()
-    const organization = await ensureActiveOrganization(user)
+    const { organization } = await requirePortalContext("books_write")
     const amountCents = parseDollarsToCents(formData.get("amount"))
     if (amountCents === null || amountCents < 0) throw new Error("Enter a valid custom adjustment amount")
     await addCustomT2Adjustment(organization.id, year, {
@@ -60,8 +57,7 @@ export async function addCustomT2AdjustmentAction(formData: FormData) {
 export async function deleteCustomT2AdjustmentAction(formData: FormData) {
   const year = parseTaxYear(formData.get("year"))
   try {
-    const user = await getCurrentUser()
-    const organization = await ensureActiveOrganization(user)
+    const { organization } = await requirePortalContext("books_write")
     await deleteCustomT2Adjustment(organization.id, year, String(formData.get("code") || ""))
   } catch (error) {
     rethrowIfRedirect(error)
@@ -75,8 +71,7 @@ export async function deleteCustomT2AdjustmentAction(formData: FormData) {
 export async function createT2JournalEntryAction(formData: FormData) {
   const year = parseTaxYear(formData.get("year"))
   try {
-    const user = await getCurrentUser()
-    const organization = await ensureActiveOrganization(user)
+    const { user, organization } = await requirePortalContext("books_write")
     const amountCents = parseDollarsToCents(formData.get("amount"))
     const debitAccountId = String(formData.get("debitAccountId") || "")
     const creditAccountId = String(formData.get("creditAccountId") || "")

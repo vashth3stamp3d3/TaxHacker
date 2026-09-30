@@ -36,11 +36,12 @@ const STARTER_ACCOUNTS = [
   ["1600", "Equipment", "asset", "fixed_asset", "debit"],
   ["1690", "Accumulated Depreciation", "asset", "contra_asset", "credit"],
   ["2000", "Accounts Payable", "liability", "current_liability", "credit"],
+  ["2010", "Inventory Received Not Invoiced", "liability", "grni", "credit"],
   ["2100", "GST Collected Payable", "liability", "tax", "credit"],
   ["2110", "GST Remittance Payable", "liability", "tax", "credit"],
   ["2200", "Payroll Liabilities", "liability", "payroll", "credit"],
   ["2300", "Credit Card Payable", "liability", "credit_card", "credit"],
-  ["2310", "Shareholder Loan - Jerrold", "liability", "owner_reimbursement", "credit"],
+  ["2310", "Shareholder Loan - Owner", "liability", "owner_reimbursement", "credit"],
   ["2400", "Loans Payable", "liability", "loan", "credit"],
   ["2500", "Customer Deposits", "liability", "deferred_revenue", "credit"],
   ["3000", "Owner Capital", "equity", "capital", "credit"],
@@ -117,6 +118,7 @@ export async function ensureActiveOrganization(user: User) {
         baseCurrency: "CAD",
         fiscalYearStartMonth: 1,
         gstRemittanceFrequency: "quarterly",
+        ownerDisplayName: user.name || "Owner",
         address: user.businessAddress,
         members: {
           create: {
@@ -133,12 +135,13 @@ export async function ensureActiveOrganization(user: User) {
 }
 
 async function seedOrganizationDefaultsIfNeeded(organizationId: string) {
-  const [ownerPayable, personalCard] = await Promise.all([
+  const [ownerPayable, personalCard, grni] = await Promise.all([
     prisma.ledgerAccount.findUnique({ where: { organizationId_code: { organizationId, code: "2310" } } }),
     prisma.paymentMethod.findUnique({ where: { organizationId_name: { organizationId, name: "Personal Card - Owner" } } }),
+    prisma.ledgerAccount.findUnique({ where: { organizationId_code: { organizationId, code: "2010" } } }),
   ])
 
-  if (!ownerPayable || !personalCard) {
+  if (!ownerPayable || !personalCard || !grni) {
     await seedOrganizationDefaults(organizationId)
   }
 }

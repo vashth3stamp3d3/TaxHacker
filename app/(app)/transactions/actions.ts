@@ -2,7 +2,7 @@
 
 import { transactionFormSchema } from "@/forms/transactions"
 import { ActionState } from "@/lib/actions"
-import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
+import { isSubscriptionExpired } from "@/lib/auth"
 import {
   getDirectorySize,
   getTransactionFileUploadPath,
@@ -10,6 +10,7 @@ import {
   isEnoughStorageToUploadFile,
   safePathJoin,
 } from "@/lib/files"
+import { requirePortalContext } from "@/models/access"
 import { updateField } from "@/models/fields"
 import { createFile, deleteFile } from "@/models/files"
 import {
@@ -33,7 +34,7 @@ export async function createTransactionAction(
   formData: FormData
 ): Promise<ActionState<Transaction>> {
   try {
-    const user = await getCurrentUser()
+    const { user, organization } = await requirePortalContext("inbox_review")
     const validatedForm = transactionFormSchema.safeParse(Object.fromEntries(formData.entries()))
 
     if (!validatedForm.success) {
@@ -45,7 +46,10 @@ export async function createTransactionAction(
 
     // --- Perform the deduplication check FIRST ---
     if (!forceSave) {
-      const existingTransaction = await findDuplicateTransaction(user.id, transactionData)
+    const existingTransaction = await findDuplicateTransaction(user.id, {
+      ...transactionData,
+      organizationId: organization.id,
+    })
 
       if (existingTransaction) {
         return {
@@ -60,7 +64,7 @@ export async function createTransactionAction(
       }
     }
 
-    const newTransaction = await createTransaction(user.id, transactionData)
+    const newTransaction = await createTransaction(user.id, { ...transactionData, organizationId: organization.id })
 
     revalidatePath("/transactions")
     return { success: true, data: newTransaction }
@@ -75,7 +79,7 @@ export async function saveTransactionAction(
   formData: FormData
 ): Promise<ActionState<Transaction>> {
   try {
-    const user = await getCurrentUser()
+    const { user } = await requirePortalContext("inbox_review")
     const transactionId = formData.get("transactionId") as string
     const validatedForm = transactionFormSchema.safeParse(Object.fromEntries(formData.entries()))
 
@@ -98,7 +102,7 @@ export async function deleteTransactionAction(
   transactionId: string
 ): Promise<ActionState<Transaction>> {
   try {
-    const user = await getCurrentUser()
+    const { user } = await requirePortalContext("inbox_review")
     const transaction = await getTransactionById(transactionId, user.id)
     if (!transaction) throw new Error("Transaction not found")
 
@@ -121,7 +125,7 @@ export async function deleteTransactionFileAction(
     return { success: false, error: "File ID and transaction ID are required" }
   }
 
-  const user = await getCurrentUser()
+  const { user } = await requirePortalContext("inbox_review")
   const transaction = await getTransactionById(transactionId, user.id)
   if (!transaction) {
     return { success: false, error: "Transaction not found" }
@@ -152,7 +156,7 @@ export async function uploadTransactionFilesAction(formData: FormData): Promise<
       return { success: false, error: "No files or transaction ID provided" }
     }
 
-    const user = await getCurrentUser()
+    const { user, organization } = await requirePortalContext("inbox_review")
     const transaction = await getTransactionById(transactionId, user.id)
     if (!transaction) {
       return { success: false, error: "Transaction not found" }
@@ -192,6 +196,7 @@ export async function uploadTransactionFilesAction(formData: FormData): Promise<
           path: relativeFilePath,
           mimetype: file.type,
           isReviewed: true,
+          organizationId: organization.id,
           metadata: {
             size: file.size,
             lastModified: file.lastModified,
@@ -225,7 +230,7 @@ export async function uploadTransactionFilesAction(formData: FormData): Promise<
 
 export async function bulkDeleteTransactionsAction(transactionIds: string[]) {
   try {
-    const user = await getCurrentUser()
+    const { user } = await requirePortalContext("inbox_review")
     await bulkDeleteTransactions(transactionIds, user.id)
     revalidatePath("/transactions")
     return { success: true }
@@ -237,7 +242,7 @@ export async function bulkDeleteTransactionsAction(transactionIds: string[]) {
 
 export async function updateFieldVisibilityAction(fieldCode: string, isVisible: boolean) {
   try {
-    const user = await getCurrentUser()
+    const { user } = await requirePortalContext("inbox_review")
     await updateField(user.id, fieldCode, {
       isVisibleInList: isVisible,
     })

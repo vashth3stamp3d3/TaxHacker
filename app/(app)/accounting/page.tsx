@@ -1,9 +1,12 @@
+import { closePeriodAction } from "@/app/(app)/accounting/actions"
 import { Button } from "@/components/ui/button"
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
 import {
   formatMoney,
+  getAccountingPeriods,
   getFinancialBreakdown,
   getGstSummary,
   getIncomeStatement,
@@ -19,22 +22,23 @@ export const metadata = {
 export default async function AccountingPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const [trialBalance, incomeStatement, gstSummary, financialBreakdown] = await Promise.all([
+  const [trialBalance, incomeStatement, gstSummary, financialBreakdown, periods] = await Promise.all([
     getTrialBalance(organization.id),
     getIncomeStatement(organization.id),
     getGstSummary(organization.id),
     getFinancialBreakdown(organization.id, user.id),
+    getAccountingPeriods(organization.id),
   ])
   const activeAccounts = trialBalance.filter((account) => account.balance !== 0).length
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Accounting</h1>
-        <p className="text-muted-foreground">
-          Canadian double-entry accounting for {organization.name}, with Alberta GST defaults.
-        </p>
-      </div>
+      <PortalPageHeader
+        title="Accounting"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description="Canadian double-entry books with Alberta GST defaults"
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -84,6 +88,36 @@ export default async function AccountingPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Period close</CardTitle>
+          <CardDescription>Closed periods refuse new journal posts. Owner and accountant only.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {periods.length === 0 ? <p className="text-sm text-muted-foreground">No accounting periods seeded yet.</p> : null}
+          {periods.map((period) => (
+            <form key={period.id} action={closePeriodAction} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+              <div>
+                <div className="font-medium">{period.name}</div>
+                <div className="text-sm text-muted-foreground">
+                  {period.startsAt.toISOString().slice(0, 10)} to {period.endsAt.toISOString().slice(0, 10)}
+                </div>
+              </div>
+              {period.isClosed ? (
+                <span className="text-sm text-muted-foreground">Closed</span>
+              ) : (
+                <>
+                  <input type="hidden" name="periodId" value={period.id} />
+                  <Button type="submit" variant="outline" size="sm">
+                    Close period
+                  </Button>
+                </>
+              )}
+            </form>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

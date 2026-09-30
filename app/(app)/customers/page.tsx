@@ -1,10 +1,12 @@
 import { createCustomerAction } from "@/app/(app)/customers/actions"
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
+import Link from "next/link"
 import { getCustomers } from "@/models/commerce"
 import { ensureActiveOrganization } from "@/models/organizations"
 
@@ -19,10 +21,12 @@ export default async function CustomersPage() {
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
-        <p className="text-muted-foreground">Customer master data for quotes, invoices, AR, and job tracking.</p>
-      </div>
+      <PortalPageHeader
+        title="Customers"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description="Parties, tax-exempt flags, and open AR"
+      />
       <Card>
         <CardHeader>
           <CardTitle>Add customer</CardTitle>
@@ -68,7 +72,11 @@ export default async function CustomersPage() {
               {customers.map((customer) => (
                 <TableRow key={customer.id}>
                   <TableCell className="font-mono">{customer.code}</TableCell>
-                  <TableCell>{customer.name}</TableCell>
+                  <TableCell>
+                    <Link href={`/customers/${customer.id}`} className="font-medium underline-offset-4 hover:underline">
+                      {customer.name}
+                    </Link>
+                  </TableCell>
                   <TableCell>{customer.email}</TableCell>
                   <TableCell>{customer.phone}</TableCell>
                 </TableRow>

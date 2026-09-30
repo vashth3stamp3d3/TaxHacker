@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { cache } from "react"
+import { writeAuditLog } from "./audit"
 
 export type JournalLineInput = {
   accountId: string
@@ -115,6 +116,7 @@ export async function createBalancedJournalEntry({
   postedAt,
   source = "manual",
   sourceId,
+  reversedEntryId,
   lines,
 }: {
   organizationId: string
@@ -123,6 +125,7 @@ export async function createBalancedJournalEntry({
   postedAt: Date
   source?: string
   sourceId?: string
+  reversedEntryId?: string
   lines: JournalLineInput[]
 }) {
   const normalizedLines = lines
@@ -144,9 +147,21 @@ export async function createBalancedJournalEntry({
     throw new Error("Journal entry debits and credits must balance")
   }
 
+  const closedPeriod = await prisma.accountingPeriod.findFirst({
+    where: {
+      organizationId,
+      isClosed: true,
+      startsAt: { lte: postedAt },
+      endsAt: { gte: postedAt },
+    },
+  })
+  if (closedPeriod) {
+    throw new Error(`Accounting period ${closedPeriod.name} is closed`)
+  }
+
   const entryNumber = await getNextNumber(organizationId, "journal_entry")
 
-  return prisma.journalEntry.create({
+  const entry = await prisma.journalEntry.create({
     data: {
       organizationId,
       entryNumber,
@@ -155,6 +170,7 @@ export async function createBalancedJournalEntry({
       description,
       postedAt,
       createdById,
+      reversedEntryId,
       lines: {
         create: normalizedLines.map((line) => ({
           organizationId,
@@ -168,6 +184,17 @@ export async function createBalancedJournalEntry({
     },
     include: { lines: true },
   })
+
+  await writeAuditLog({
+    organizationId,
+    userId: createdById,
+    action: "journal.post",
+    entityType: "journal_entry",
+    entityId: entry.id,
+    data: { source, sourceId, description, debitTotal },
+  })
+
+  return entry
 }
 
 export async function postReceiptAnalysisJournalEntry({
@@ -344,13 +371,16 @@ export const getCashFlowStatement = cache(async (organizationId: string) => {
   }
 })
 
-export const getGstSummary = cache(async (organizationId: string) => {
+export const getGstSummary = cache(async (organizationId: string, range?: { from?: Date; to?: Date }) => {
   const taxCodes = await getTaxCodes(organizationId)
   const gstCodeIds = taxCodes.filter((code) => code.taxType === "GST").map((code) => code.id)
   const taxLines = await prisma.journalLine.findMany({
     where: {
       organizationId,
       taxCodeId: { in: gstCodeIds },
+      journalEntry: range?.from || range?.to
+        ? { postedAt: { gte: range.from, lte: range.to } }
+        : undefined,
     },
   })
 
@@ -394,11 +424,17 @@ export const getFinancialBreakdown = cache(async (organizationId: string, userId
       orderBy: { postedAt: "asc" },
     }),
     prisma.transaction.findMany({
-      where: { userId, issuedAt: { gte: startsAt, lte: endsAt } },
+      where: {
+        OR: [{ organizationId }, { userId, organizationId: null }],
+        issuedAt: { gte: startsAt, lte: endsAt },
+      },
       select: { issuedAt: true, total: true, convertedTotal: true, type: true },
     }),
     prisma.transaction.findMany({
-      where: { userId, issuedAt: { gte: startsAt, lte: endsAt } },
+      where: {
+        OR: [{ organizationId }, { userId, organizationId: null }],
+        issuedAt: { gte: startsAt, lte: endsAt },
+      },
       orderBy: { issuedAt: "desc" },
       take: 8,
       select: {
@@ -453,6 +489,72 @@ export const getFinancialBreakdown = cache(async (organizationId: string, userId
   return { year, ytd, monthly: elapsedMonthly, recentTransactions }
 })
 
+export async function reverseJournalEntry({
+  organizationId,
+  journalEntryId,
+  createdById,
+}: {
+  organizationId: string
+  journalEntryId: string
+  createdById?: string
+}) {
+  const original = await prisma.journalEntry.findFirst({
+    where: { id: journalEntryId, organizationId },
+    include: { lines: true },
+  })
+  if (!original) throw new Error("Journal entry not found")
+  if (original.reversedEntryId) throw new Error("Journal entry is already reversed")
+
+  const reversal = await createBalancedJournalEntry({
+    organizationId,
+    createdById,
+    description: `Reversal of ${original.entryNumber}`,
+    postedAt: new Date(),
+    source: "reversal",
+    sourceId: original.id,
+    reversedEntryId: original.id,
+    lines: original.lines.map((line) => ({
+      accountId: line.accountId,
+      debit: line.credit,
+      credit: line.debit,
+      memo: `Reversal: ${line.memo || original.description || original.entryNumber}`,
+      taxCodeId: line.taxCodeId || undefined,
+    })),
+  })
+
+  await prisma.journalEntry.update({
+    where: { id: original.id },
+    data: { reversedEntryId: reversal.id, status: "reversed" },
+  })
+
+  return reversal
+}
+
+export async function closeAccountingPeriod(organizationId: string, periodId: string, userId?: string) {
+  const period = await prisma.accountingPeriod.findFirst({ where: { id: periodId, organizationId } })
+  if (!period) throw new Error("Accounting period not found")
+  const updated = await prisma.accountingPeriod.update({
+    where: { id: period.id },
+    data: { isClosed: true },
+  })
+  await writeAuditLog({
+    organizationId,
+    userId,
+    action: "period.close",
+    entityType: "accounting_period",
+    entityId: period.id,
+    data: { name: period.name },
+  })
+  return updated
+}
+
+export const getAccountingPeriods = cache(async (organizationId: string) => {
+  return prisma.accountingPeriod.findMany({
+    where: { organizationId },
+    orderBy: { startsAt: "desc" },
+  })
+})
+
 function sumByTypes(balances: AccountBalance[], types: string[]) {
   return balances
     .filter((balance) => types.includes(balance.type))
@@ -477,4 +579,20 @@ export function formatMoney(cents: number, currency = "CAD") {
     style: "currency",
     currency,
   }).format(cents / 100)
+}
+
+export function trialBalanceCsv(accounts: AccountBalance[]) {
+  const header = ["Code", "Name", "Type", "Debit", "Credit", "Balance"]
+  const rows = accounts.map((account) => [
+    account.code,
+    account.name.replaceAll(",", " "),
+    account.type,
+    (account.debit / 100).toFixed(2),
+    (account.credit / 100).toFixed(2),
+    (account.balance / 100).toFixed(2),
+  ])
+  const debit = accounts.reduce((sum, account) => sum + account.debit, 0)
+  const credit = accounts.reduce((sum, account) => sum + account.credit, 0)
+  rows.push(["", "Totals", "", (debit / 100).toFixed(2), (credit / 100).toFixed(2), ""])
+  return [header, ...rows].map((row) => row.join(",")).join("\n")
 }

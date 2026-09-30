@@ -1,4 +1,5 @@
 import { consumeInventoryAction, createInventoryItemAction, receiveInventoryAction } from "@/app/(app)/inventory/actions"
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -26,10 +27,12 @@ export default async function InventoryPage() {
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Inventory</h1>
-        <p className="text-muted-foreground">Item catalog, stock balances, movements, valuation, and COGS postings.</p>
-      </div>
+      <PortalPageHeader
+        title="Inventory"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description="Weighted-average costing; receipts credit GRNI until the vendor bill posts"
+      />
 
       <Card>
         <CardHeader>
@@ -47,7 +50,16 @@ export default async function InventoryPage() {
               <Input id="name" name="name" required />
             </div>
             <div>
-              <Label htmlFor="unitOfMeasure">Unit</Label>
+              <Label htmlFor="type">Type</Label>
+              <select id="type" name="type" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                <option value="paper">Paper</option>
+                <option value="ink">Ink</option>
+                <option value="supplies">Supplies</option>
+                <option value="material">Material</option>
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="unitOfMeasure">UOM</Label>
               <Input id="unitOfMeasure" name="unitOfMeasure" defaultValue="each" />
             </div>
             <div>
@@ -68,7 +80,7 @@ export default async function InventoryPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <InventoryMovementForm
           title="Receive stock"
-          description="Debit inventory and credit accrued AP."
+          description="Debit inventory and credit GRNI (2010)."
           action={receiveInventoryAction}
           items={items}
           warehouseId={defaultWarehouse?.id}

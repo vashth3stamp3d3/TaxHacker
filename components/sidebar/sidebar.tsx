@@ -34,6 +34,8 @@ import {
   Gift,
   House,
   Import,
+  Mail,
+  MessageCircle,
   Package,
   PackageCheck,
   ReceiptText,
@@ -59,11 +61,18 @@ type SidebarApp = {
   icon: string
 }
 
-const erpItems = [
+const inboxItems = [
+  { title: "Home", href: "/dashboard", icon: House },
+  { title: "Inbox", href: "/unsorted", icon: ClockArrowUp },
+  { title: "Transactions", href: "/transactions", icon: FileText },
+]
+
+const booksItems = [
   { title: "Accounting", href: "/accounting", icon: Calculator },
   { title: "Reports", href: "/reports", icon: ChartNoAxesCombined },
-  { title: "GST", href: "/taxes/gst", icon: ReceiptText },
-  { title: "T2 Worksheet", href: "/taxes/t2", icon: FileText },
+]
+
+const shopItems = [
   { title: "Customers", href: "/customers", icon: Users },
   { title: "Vendors", href: "/vendors", icon: BriefcaseBusiness },
   { title: "Sales", href: "/sales", icon: ShoppingCart },
@@ -71,6 +80,12 @@ const erpItems = [
   { title: "Inventory", href: "/inventory", icon: Warehouse },
   { title: "Purchasing", href: "/purchasing", icon: PackageCheck },
   { title: "Automation", href: "/automation", icon: Bot },
+]
+
+const taxItems = [
+  { title: "GST", href: "/taxes/gst", icon: ReceiptText },
+  { title: "T2 Worksheet", href: "/taxes/t2", icon: FileText },
+  { title: "Tax Advisor", href: "/taxes/advisor", icon: MessageCircle },
 ]
 
 const settingsItems = [
@@ -115,8 +130,8 @@ export function AppSidebar({
           <Link href="/" className="flex min-w-0 items-center gap-2">
             <Image src="/logo/256.png" alt="Logo" className="h-10 w-10 shrink-0 rounded-lg" width={40} height={40} />
             <div className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate font-semibold text-base text-black">{accountTitle}</span>
-              <span className="truncate text-xs text-muted-foreground">{organizationName || accountSubtitle}</span>
+              <span className="truncate font-semibold text-base text-black">Formulated Tax</span>
+              <span className="truncate text-xs text-muted-foreground">{organizationName || accountTitle}</span>
             </div>
           </Link>
         </SidebarHeader>
@@ -128,54 +143,39 @@ export function AppSidebar({
             </UploadButton>
           </SidebarGroup>
           <SidebarGroup>
+            <SidebarGroupLabel>Inbox</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItemWithHighlight href="/dashboard">
-                  <SidebarMenuButton asChild>
-                    <Link href="/dashboard">
-                      <House />
-                      <span>Home</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-
-                <SidebarMenuItemWithHighlight href="/transactions">
-                  <SidebarMenuButton asChild>
-                    <Link href="/transactions">
-                      <FileText />
-                      <span>Transactions</span>
-                      {notification && notification.code === "sidebar.transactions" && notification.message && (
-                        <Blinker />
-                      )}
-                      <span></span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
-
-                <SidebarMenuItemWithHighlight href="/unsorted">
-                  <SidebarMenuButton asChild>
-                    <Link href="/unsorted">
-                      <ClockArrowUp />
-                      <span>Unsorted</span>
-                      {unsortedFilesCount > 0 && (
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                          {unsortedFilesCount}
-                        </span>
-                      )}
-                      {notification && notification.code === "sidebar.unsorted" && notification.message && <Blinker />}
-                      <span></span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItemWithHighlight>
+                {inboxItems.map((item) => (
+                  <SidebarMenuItemWithHighlight key={item.href} href={item.href}>
+                    <SidebarMenuButton asChild>
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                        {item.href === "/unsorted" && unsortedFilesCount > 0 && (
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                            {unsortedFilesCount}
+                          </span>
+                        )}
+                        {item.href === "/unsorted" && notification?.code === "sidebar.unsorted" && notification.message && (
+                          <Blinker />
+                        )}
+                        {item.href === "/transactions" &&
+                          notification?.code === "sidebar.transactions" &&
+                          notification.message && <Blinker />}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItemWithHighlight>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
 
           <SidebarGroup>
-            <SidebarGroupLabel>Print shop</SidebarGroupLabel>
+            <SidebarGroupLabel>Books</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {erpItems.map((item) => (
+                {booksItems.map((item) => (
                   <SidebarMenuItemWithHighlight key={item.href} href={item.href}>
                     <SidebarMenuButton asChild>
                       <Link href={item.href}>
@@ -189,21 +189,59 @@ export function AppSidebar({
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {apps.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Shop</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {shopItems.map((item) => (
+                  <SidebarMenuItemWithHighlight key={item.href} href={item.href}>
+                    <SidebarMenuButton asChild>
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItemWithHighlight>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarGroup>
+            <SidebarGroupLabel>Tax</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {taxItems.map((item) => (
+                  <SidebarMenuItemWithHighlight key={item.href} href={item.href}>
+                    <SidebarMenuButton asChild>
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItemWithHighlight>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          {apps.filter((app) => app.id === "email").length > 0 && (
             <SidebarGroup>
-              <SidebarGroupLabel>Apps</SidebarGroupLabel>
+              <SidebarGroupLabel>Capture</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {apps.map((app) => (
-                    <SidebarMenuItemWithHighlight key={app.id} href={`/apps/${app.id}`}>
-                      <SidebarMenuButton asChild>
-                        <Link href={`/apps/${app.id}`}>
-                          <span className="text-base leading-none">{app.icon}</span>
-                          <span>{app.name}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItemWithHighlight>
-                  ))}
+                  {apps
+                    .filter((app) => app.id === "email")
+                    .map((app) => (
+                      <SidebarMenuItemWithHighlight key={app.id} href={`/apps/${app.id}`}>
+                        <SidebarMenuButton asChild>
+                          <Link href={`/apps/${app.id}`}>
+                            <Mail />
+                            <span>{app.name}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItemWithHighlight>
+                    ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>

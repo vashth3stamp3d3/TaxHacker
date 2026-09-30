@@ -29,8 +29,8 @@ const env = envSchema.parse(Object.fromEntries(Object.entries(process.env).filte
 
 const config = {
   app: {
-    title: "TaxHacker",
-    description: "Your personal AI accountant",
+    title: "Formulated Tax",
+    description: "Operator portal for Alberta print-shop books, GST, and TaxHacker intake",
     version: packageJson.version || "0.0.1",
     baseURL: env.BASE_URL || `http://localhost:${env.PORT || "7331"}`,
     supportEmail: "me@vas3k.com",

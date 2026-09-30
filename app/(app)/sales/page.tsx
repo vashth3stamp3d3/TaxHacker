@@ -1,9 +1,12 @@
 import {
+  convertOrderAction,
+  convertQuoteAction,
   createCustomerInvoiceAction,
   createCustomerPaymentAction,
   createQuoteAction,
   createSalesOrderAction,
 } from "@/app/(app)/sales/actions"
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
 import { formatMoney } from "@/models/accounting"
-import { getCustomerInvoices, getCustomerPayments, getCustomers } from "@/models/commerce"
+import { getCustomerInvoices, getCustomerPayments, getCustomers, getOpenAr } from "@/models/commerce"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { getQuotes, getSalesOrders } from "@/models/operations"
 
@@ -22,20 +25,23 @@ export const metadata = {
 export default async function SalesPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const [customers, invoices, payments, quotes, salesOrders] = await Promise.all([
+  const [customers, invoices, payments, quotes, salesOrders, openAr] = await Promise.all([
     getCustomers(organization.id),
     getCustomerInvoices(organization.id),
     getCustomerPayments(organization.id),
     getQuotes(organization.id),
     getSalesOrders(organization.id),
+    getOpenAr(organization.id),
   ])
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Sales</h1>
-        <p className="text-muted-foreground">GST-aware invoices and customer payments that post automatically.</p>
-      </div>
+      <PortalPageHeader
+        title="Sales"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description="Quotes convert to orders, orders convert to GST invoices, payments apply to open AR"
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <SalesDocumentForm
@@ -106,6 +112,19 @@ export default async function SalesPage() {
                 </select>
               </div>
               <div>
+                <Label>Apply to invoice</Label>
+                <select name="invoiceId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                  <option value="">Unapplied cash</option>
+                  {openAr
+                    .filter((invoice) => invoice.balance > 0)
+                    .map((invoice) => (
+                      <option key={invoice.id} value={invoice.id}>
+                        {invoice.invoiceNumber} · {formatMoney(invoice.balance)} open
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div>
                 <Label htmlFor="paymentAmount">Amount</Label>
                 <Input id="paymentAmount" name="amount" type="number" min="0.01" step="0.01" defaultValue="105.00" />
               </div>
@@ -131,6 +150,7 @@ export default async function SalesPage() {
                   <TableHead>Quote</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -139,6 +159,16 @@ export default async function SalesPage() {
                     <TableCell className="font-mono">{quote.quoteNumber}</TableCell>
                     <TableCell>{quote.status}</TableCell>
                     <TableCell className="text-right">{formatMoney(quote.total)}</TableCell>
+                    <TableCell>
+                      {quote.status !== "accepted" && (
+                        <form action={convertQuoteAction}>
+                          <input type="hidden" name="quoteId" value={quote.id} />
+                          <Button type="submit" size="sm" variant="outline">
+                            Convert to order
+                          </Button>
+                        </form>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -156,6 +186,7 @@ export default async function SalesPage() {
                   <TableHead>Order</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -164,6 +195,16 @@ export default async function SalesPage() {
                     <TableCell className="font-mono">{order.orderNumber}</TableCell>
                     <TableCell>{order.status}</TableCell>
                     <TableCell className="text-right">{formatMoney(order.total)}</TableCell>
+                    <TableCell>
+                      {order.status !== "invoiced" && (
+                        <form action={convertOrderAction}>
+                          <input type="hidden" name="salesOrderId" value={order.id} />
+                          <Button type="submit" size="sm" variant="outline">
+                            Convert to invoice
+                          </Button>
+                        </form>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -185,6 +226,7 @@ export default async function SalesPage() {
                 <TableHead className="text-right">Subtotal</TableHead>
                 <TableHead className="text-right">GST</TableHead>
                 <TableHead className="text-right">Total</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -195,6 +237,13 @@ export default async function SalesPage() {
                   <TableCell className="text-right">{formatMoney(invoice.subtotal)}</TableCell>
                   <TableCell className="text-right">{formatMoney(invoice.taxTotal)}</TableCell>
                   <TableCell className="text-right">{formatMoney(invoice.total)}</TableCell>
+                  <TableCell>
+                    <Button asChild size="sm" variant="outline">
+                      <a href={`/sales/invoices/${invoice.id}/pdf`} data-entity-type="customer_invoice" data-entity-id={invoice.id}>
+                        PDF
+                      </a>
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

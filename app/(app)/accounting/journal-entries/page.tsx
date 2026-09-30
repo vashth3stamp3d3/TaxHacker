@@ -1,9 +1,9 @@
-import { createJournalEntryAction } from "@/app/(app)/accounting/actions"
+import { createJournalEntryAction, reverseJournalEntryAction } from "@/app/(app)/accounting/actions"
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
 import { formatMoney, getJournalEntries, getLedgerAccounts } from "@/models/accounting"
@@ -25,10 +25,12 @@ export default async function JournalEntriesPage() {
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Journal Entries</h1>
-        <p className="text-muted-foreground">Post balanced debits and credits into the general ledger.</p>
-      </div>
+      <PortalPageHeader
+        title="Journal entries"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description="Post balanced debits and credits into the general ledger"
+      />
 
       <Card>
         <CardHeader>
@@ -56,33 +58,23 @@ export default async function JournalEntriesPage() {
             </div>
             <div className="md:col-span-2">
               <Label>Debit Account</Label>
-              <Select name="debitAccountId" defaultValue={accounts[0]?.id}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Debit account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.code} - {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select name="debitAccountId" defaultValue={accounts[0]?.id} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.code} - {account.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="md:col-span-2">
               <Label>Credit Account</Label>
-              <Select name="creditAccountId" defaultValue={accounts[1]?.id}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Credit account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.code} - {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select name="creditAccountId" defaultValue={accounts[1]?.id} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.code} - {account.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </form>
         </CardContent>
@@ -102,6 +94,7 @@ export default async function JournalEntriesPage() {
                 <TableHead>Description</TableHead>
                 <TableHead className="text-right">Debits</TableHead>
                 <TableHead className="text-right">Credits</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -115,6 +108,18 @@ export default async function JournalEntriesPage() {
                     <TableCell>{entry.description}</TableCell>
                     <TableCell className="text-right">{formatMoney(debit)}</TableCell>
                     <TableCell className="text-right">{formatMoney(credit)}</TableCell>
+                    <TableCell>
+                      {entry.status !== "reversed" && !entry.reversedEntryId ? (
+                        <form action={reverseJournalEntryAction}>
+                          <input type="hidden" name="journalEntryId" value={entry.id} />
+                          <Button type="submit" size="sm" variant="outline">
+                            Reverse
+                          </Button>
+                        </form>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Reversed</span>
+                      )}
+                    </TableCell>
                   </TableRow>
                 )
               })}

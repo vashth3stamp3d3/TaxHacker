@@ -1,4 +1,5 @@
-import { createVendorBillAction, createVendorPaymentAction } from "@/app/(app)/purchasing/actions"
+import { createPurchaseOrderAction, createVendorBillAction, createVendorPaymentAction, receivePurchaseOrderAction } from "@/app/(app)/purchasing/actions"
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -6,7 +7,8 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
 import { formatMoney } from "@/models/accounting"
-import { getVendorBills, getVendorPayments, getVendors } from "@/models/commerce"
+import { getOpenAp, getVendorBills, getVendorPayments, getVendors } from "@/models/commerce"
+import { getGoodsReceipts, getItems, getPurchaseOrders, getWarehouses } from "@/models/inventory"
 import { ensureActiveOrganization } from "@/models/organizations"
 
 export const metadata = {
@@ -16,17 +18,99 @@ export const metadata = {
 export default async function PurchasingPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const [vendors, bills, payments] = await Promise.all([
+  const [vendors, bills, payments, purchaseOrders, receipts, items, warehouses, openAp] = await Promise.all([
     getVendors(organization.id),
     getVendorBills(organization.id),
     getVendorPayments(organization.id),
+    getPurchaseOrders(organization.id),
+    getGoodsReceipts(organization.id),
+    getItems(organization.id),
+    getWarehouses(organization.id),
+    getOpenAp(organization.id),
   ])
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Purchasing</h1>
-        <p className="text-muted-foreground">Vendor bills and payments with GST ITC and AP postings.</p>
+      <PortalPageHeader
+        title="Purchasing"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description="PO receives stock to GRNI; vendor bills post AP and GST ITCs"
+      />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Create purchase order</CardTitle>
+            <CardDescription>PO does not post. Receiving stocks inventory against GRNI.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={createPurchaseOrderAction} className="space-y-3">
+              <div>
+                <Label>Vendor</Label>
+                <select name="vendorId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                  <option value="">Unassigned vendor</option>
+                  {vendors.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Item</Label>
+                <select name="itemId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                  <option value="">No SKU</option>
+                  {items.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.sku} · {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="quantity">Quantity</Label>
+                <Input id="quantity" name="quantity" type="number" defaultValue="1" />
+              </div>
+              <div>
+                <Label htmlFor="unitCost">Unit cost</Label>
+                <Input id="unitCost" name="unitCost" type="number" step="0.01" defaultValue="10.00" />
+              </div>
+              <Button type="submit">Create PO</Button>
+            </form>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Receive PO</CardTitle>
+            <CardDescription>Debits inventory, credits 2010 GRNI. GST waits for the bill.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={receivePurchaseOrderAction} className="space-y-3">
+              <div>
+                <Label>Purchase order</Label>
+                <select name="purchaseOrderId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                  {purchaseOrders.map((order) => (
+                    <option key={order.id} value={order.id}>
+                      {order.orderNumber} · {order.status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Warehouse</Label>
+                <select name="warehouseId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                  {warehouses.map((warehouse) => (
+                    <option key={warehouse.id} value={warehouse.id}>
+                      {warehouse.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button type="submit">Receive</Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -44,6 +128,17 @@ export default async function PurchasingPage() {
                   {vendors.map((vendor) => (
                     <option key={vendor.id} value={vendor.id}>
                       {vendor.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Match goods receipt</Label>
+                <select name="goodsReceiptId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                  <option value="">Expense bill (no inventory)</option>
+                  {receipts.map((receipt) => (
+                    <option key={receipt.id} value={receipt.id}>
+                      {receipt.receiptNumber}
                     </option>
                   ))}
                 </select>
@@ -80,6 +175,19 @@ export default async function PurchasingPage() {
                 </select>
               </div>
               <div>
+                <Label>Apply to bill</Label>
+                <select name="vendorBillId" className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                  <option value="">Unapplied payment</option>
+                  {openAp
+                    .filter((bill) => bill.balance > 0)
+                    .map((bill) => (
+                      <option key={bill.id} value={bill.id}>
+                        {bill.billNumber} · {formatMoney(bill.balance)} open
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div>
                 <Label htmlFor="paymentAmount">Amount</Label>
                 <Input id="paymentAmount" name="amount" type="number" min="0.01" step="0.01" defaultValue="105.00" />
               </div>
@@ -92,6 +200,32 @@ export default async function PurchasingPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Purchase orders / receipts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>PO</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {purchaseOrders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell className="font-mono">{order.orderNumber}</TableCell>
+                  <TableCell>{order.status}</TableCell>
+                  <TableCell className="text-right">{formatMoney(order.total)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

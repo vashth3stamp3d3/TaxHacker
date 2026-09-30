@@ -10,6 +10,7 @@ import { EXPORT_AND_IMPORT_FIELD_MAP, ExportFields, ExportFilters } from "@/mode
 import { getFields } from "@/models/fields"
 import { getFilesByTransactionId } from "@/models/files"
 import { updateProgress } from "@/models/progress"
+import { ensureActiveOrganization } from "@/models/organizations"
 import { getTransactions } from "@/models/transactions"
 import { format } from "@fast-csv/format"
 import fs from "fs/promises"
@@ -30,7 +31,8 @@ export async function GET(request: Request) {
   const progressId = url.searchParams.get("progressId")
 
   const user = await getCurrentUser()
-  const { transactions } = await getTransactions(user.id, filters)
+  const organization = await ensureActiveOrganization(user)
+  const { transactions } = await getTransactions(user.id, { ...filters, organizationId: organization.id })
   const existingFields = await getFields(user.id)
 
   try {

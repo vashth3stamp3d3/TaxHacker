@@ -155,6 +155,7 @@ model File {
   id                String   @id @default(uuid()) @db.Uuid
   userId            String   @map("user_id") @db.Uuid
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId    String?  @map("organization_id") @db.Uuid
   filename          String
   path              String
   mimetype          String
@@ -164,6 +165,8 @@ model File {
   cachedParseResult Json?    @map("cached_parse_result")
   createdAt         DateTime @default(now()) @map("created_at")
 
+  @@index([organizationId])
+  @@index([userId, isReviewed])
   @@map("files")
 }
 
@@ -194,8 +197,16 @@ model Transaction {
   journalEntryId        String?   @map("journal_entry_id") @db.Uuid
   paymentMethodId       String?   @map("payment_method_id") @db.Uuid
   accountingSuggestion  Json?     @map("accounting_suggestion")
+  organizationId        String?   @map("organization_id") @db.Uuid
+  postsToLedger         Boolean   @default(true) @map("posts_to_ledger")
+  destinationType       String?   @map("destination_type")
+  sourceFileId          String?   @unique @map("source_file_id") @db.Uuid
+  vendorBillId          String?   @map("vendor_bill_id") @db.Uuid
+  customerInvoiceId     String?   @map("customer_invoice_id") @db.Uuid
+  goodsReceiptId        String?   @map("goods_receipt_id") @db.Uuid
 
   @@index([userId])
+  @@index([organizationId])
   @@index([projectCode])
   @@index([categoryCode])
   @@index([issuedAt])
@@ -257,6 +268,7 @@ model Organization {
   gstRemittanceFrequency   String   @default("quarterly") @map("gst_remittance_frequency")
   accountantName           String?  @map("accountant_name")
   accountantEmail          String?  @map("accountant_email")
+  ownerDisplayName         String?  @map("owner_display_name")
   address                  String?
   phone                    String?
   createdAt                DateTime @default(now()) @map("created_at")
@@ -392,9 +404,11 @@ model TaxRemittance {
   netTax         Int       @default(0) @map("net_tax")
   status         String    @default("draft")
   remittedAt     DateTime? @map("remitted_at")
+  journalEntryId String?   @map("journal_entry_id") @db.Uuid
   createdAt      DateTime  @default(now()) @map("created_at")
 
   @@index([organizationId])
+  @@index([filingPeriodId])
   @@map("tax_remittances")
 }
 
@@ -460,6 +474,7 @@ model JournalEntry {
   status         String        @default("posted")
   currencyCode   String        @default("CAD") @map("currency_code")
   createdById    String?       @map("created_by_id") @db.Uuid
+  reversedEntryId String?      @map("reversed_entry_id") @db.Uuid
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
   lines          JournalLine[]
@@ -624,8 +639,9 @@ model Item {
   unitOfMeasure     String   @default("each") @map("unit_of_measure")
   standardCost      Int      @default(0) @map("standard_cost")
   salesPrice        Int      @default(0) @map("sales_price")
-  preferredVendorId String?  @map("preferred_vendor_id") @db.Uuid
-  isActive          Boolean  @default(true) @map("is_active")
+  preferredVendorId     String?  @map("preferred_vendor_id") @db.Uuid
+  inventoryAccountCode  String?  @map("inventory_account_code")
+  isActive              Boolean  @default(true) @map("is_active")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -845,8 +861,11 @@ model PrintJob {
   name           String
   status         String    @default("planned")
   dueAt          DateTime? @map("due_at")
-  quotedTotal    Int       @default(0) @map("quoted_total")
-  actualCost     Int       @default(0) @map("actual_cost")
+  quotedTotal         Int       @default(0) @map("quoted_total")
+  actualCost          Int       @default(0) @map("actual_cost")
+  customerInvoiceId   String?   @map("customer_invoice_id") @db.Uuid
+  wipJournalEntryId   String?   @map("wip_journal_entry_id") @db.Uuid
+  cogsJournalEntryId  String?   @map("cogs_journal_entry_id") @db.Uuid
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
@@ -932,6 +951,8 @@ model GoodsReceipt {
   vendorId        String?  @map("vendor_id") @db.Uuid
   receivedAt      DateTime @default(now()) @map("received_at")
   status          String   @default("received")
+  journalEntryId  String?  @map("journal_entry_id") @db.Uuid
+  sourceFileId    String?  @unique @map("source_file_id") @db.Uuid
 
   @@unique([organizationId, receiptNumber])
   @@map("goods_receipts")
@@ -941,14 +962,17 @@ model VendorBill {
   id             String    @id @default(uuid()) @db.Uuid
   organizationId String    @map("organization_id") @db.Uuid
   billNumber     String    @map("bill_number")
-  vendorId       String?   @map("vendor_id") @db.Uuid
-  journalEntryId String?   @map("journal_entry_id") @db.Uuid
-  status         String    @default("draft")
-  subtotal       Int       @default(0)
-  taxTotal       Int       @default(0) @map("tax_total")
-  total          Int       @default(0)
-  issuedAt       DateTime  @default(now()) @map("issued_at")
-  dueAt          DateTime? @map("due_at")
+  vendorId         String?   @map("vendor_id") @db.Uuid
+  journalEntryId   String?   @map("journal_entry_id") @db.Uuid
+  purchaseOrderId  String?   @map("purchase_order_id") @db.Uuid
+  goodsReceiptId   String?   @map("goods_receipt_id") @db.Uuid
+  sourceFileId     String?   @unique @map("source_file_id") @db.Uuid
+  status           String    @default("draft")
+  subtotal         Int       @default(0)
+  taxTotal         Int       @default(0) @map("tax_total")
+  total            Int       @default(0)
+  issuedAt         DateTime  @default(now()) @map("issued_at")
+  dueAt            DateTime? @map("due_at")
 
   @@unique([organizationId, billNumber])
   @@index([organizationId])
@@ -959,6 +983,7 @@ model VendorPayment {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @map("organization_id") @db.Uuid
   vendorId       String?  @map("vendor_id") @db.Uuid
+  vendorBillId   String?  @map("vendor_bill_id") @db.Uuid
   journalEntryId String?  @map("journal_entry_id") @db.Uuid
   amount         Int
   paidAt         DateTime @default(now()) @map("paid_at")
@@ -975,6 +1000,7 @@ model CustomerInvoice {
   customerId     String?   @map("customer_id") @db.Uuid
   salesOrderId   String?   @map("sales_order_id") @db.Uuid
   journalEntryId String?   @map("journal_entry_id") @db.Uuid
+  sourceFileId   String?   @unique @map("source_file_id") @db.Uuid
   status         String    @default("draft")
   subtotal       Int       @default(0)
   taxTotal       Int       @default(0) @map("tax_total")
@@ -1008,6 +1034,7 @@ model CustomerPayment {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @map("organization_id") @db.Uuid
   customerId     String?  @map("customer_id") @db.Uuid
+  invoiceId      String?  @map("invoice_id") @db.Uuid
   journalEntryId String?  @map("journal_entry_id") @db.Uuid
   amount         Int
   paidAt         DateTime @default(now()) @map("paid_at")
@@ -1130,4 +1157,55 @@ model ReportRun {
 
   @@index([organizationId, reportType])
   @@map("report_runs")
+}
+
+model DocumentAttachment {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  fileId           String   @map("file_id") @db.Uuid
+  transactionId    String?  @map("transaction_id") @db.Uuid
+  customerInvoiceId String? @map("customer_invoice_id") @db.Uuid
+  vendorBillId     String?  @map("vendor_bill_id") @db.Uuid
+  quoteId          String?  @map("quote_id") @db.Uuid
+  salesOrderId     String?  @map("sales_order_id") @db.Uuid
+  printJobId       String?  @map("print_job_id") @db.Uuid
+  purchaseOrderId  String?  @map("purchase_order_id") @db.Uuid
+  goodsReceiptId   String?  @map("goods_receipt_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([organizationId])
+  @@index([fileId])
+  @@index([transactionId])
+  @@index([customerInvoiceId])
+  @@index([vendorBillId])
+  @@map("document_attachments")
+}
+
+model TaxAdvisorThread {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  userId         String               @map("user_id") @db.Uuid
+  title          String               @default("Tax advisor")
+  entityType     String?              @map("entity_type")
+  entityId       String?              @map("entity_id") @db.Uuid
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  messages       TaxAdvisorMessage[]
+
+  @@index([organizationId, updatedAt])
+  @@index([userId])
+  @@map("tax_advisor_threads")
+}
+
+model TaxAdvisorMessage {
+  id        String            @id @default(uuid()) @db.Uuid
+  threadId  String            @map("thread_id") @db.Uuid
+  thread    TaxAdvisorThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role      String
+  content   String
+  sources   Json?
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  @@index([threadId])
+  @@map("tax_advisor_messages")
 }

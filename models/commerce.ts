@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db"
+import { taxableTotals } from "@/lib/tax/gst"
 import { cache } from "react"
-import { createBalancedJournalEntry, getNextNumber } from "./accounting"
+import { createBalancedJournalEntry, getNextNumber, getTaxCodes, type JournalLineInput } from "./accounting"
+import { writeAuditLog } from "./audit"
 
 export const getCustomers = cache(async (organizationId: string) => {
   return prisma.customer.findMany({ where: { organizationId }, orderBy: { name: "asc" } })
@@ -8,6 +10,14 @@ export const getCustomers = cache(async (organizationId: string) => {
 
 export const getVendors = cache(async (organizationId: string) => {
   return prisma.vendor.findMany({ where: { organizationId }, orderBy: { name: "asc" } })
+})
+
+export const getCustomer = cache(async (organizationId: string, id: string) => {
+  return prisma.customer.findFirst({ where: { id, organizationId } })
+})
+
+export const getVendor = cache(async (organizationId: string, id: string) => {
+  return prisma.vendor.findFirst({ where: { id, organizationId } })
 })
 
 export const getCustomerInvoices = cache(async (organizationId: string) => {
@@ -18,6 +28,16 @@ export const getVendorBills = cache(async (organizationId: string) => {
   return prisma.vendorBill.findMany({ where: { organizationId }, orderBy: { issuedAt: "desc" }, take: 100 })
 })
 
+export const getCustomerInvoice = cache(async (organizationId: string, id: string) => {
+  return prisma.customerInvoice.findFirst({
+    where: { id, organizationId },
+  })
+})
+
+export const getInvoiceLines = cache(async (invoiceId: string) => {
+  return prisma.invoiceLine.findMany({ where: { invoiceId }, orderBy: { description: "asc" } })
+})
+
 export const getCustomerPayments = cache(async (organizationId: string) => {
   return prisma.customerPayment.findMany({ where: { organizationId }, orderBy: { paidAt: "desc" }, take: 100 })
 })
@@ -26,17 +46,96 @@ export const getVendorPayments = cache(async (organizationId: string) => {
   return prisma.vendorPayment.findMany({ where: { organizationId }, orderBy: { paidAt: "desc" }, take: 100 })
 })
 
-export async function createCustomer(organizationId: string, data: { name: string; email?: string; phone?: string }) {
+export async function getDefaultGstRate(organizationId: string) {
+  const profile = await prisma.provinceTaxProfile.findFirst({
+    where: { organizationId, isDefault: true },
+  })
+  return profile?.rateBasisPoints ?? 500
+}
+
+export async function createCustomer(
+  organizationId: string,
+  data: { name: string; email?: string; phone?: string; address?: string; taxExempt?: boolean; paymentTerms?: string }
+) {
   const code = `CUST-${String((await prisma.customer.count({ where: { organizationId } })) + 1).padStart(4, "0")}`
   return prisma.customer.create({ data: { organizationId, code, ...data } })
 }
 
+export async function updateCustomer(
+  organizationId: string,
+  id: string,
+  data: { name?: string; email?: string | null; phone?: string | null; address?: string | null; taxExempt?: boolean; paymentTerms?: string }
+) {
+  return prisma.customer.update({ where: { id }, data })
+}
+
 export async function createVendor(
   organizationId: string,
-  data: { name: string; email?: string; phone?: string; gstNumber?: string }
+  data: { name: string; email?: string; phone?: string; gstNumber?: string; address?: string }
 ) {
   const code = `VEND-${String((await prisma.vendor.count({ where: { organizationId } })) + 1).padStart(4, "0")}`
   return prisma.vendor.create({ data: { organizationId, code, ...data } })
+}
+
+export async function updateVendor(
+  organizationId: string,
+  id: string,
+  data: { name?: string; email?: string | null; phone?: string | null; gstNumber?: string | null; address?: string | null }
+) {
+  return prisma.vendor.update({ where: { id }, data })
+}
+
+export async function getOpenAr(organizationId: string, customerId?: string) {
+  const invoices = await prisma.customerInvoice.findMany({
+    where: {
+      organizationId,
+      customerId: customerId || undefined,
+      status: { in: ["posted", "partial"] },
+    },
+  })
+  const payments = await prisma.customerPayment.findMany({
+    where: { organizationId, customerId: customerId || undefined },
+  })
+  const paidByInvoice = new Map<string, number>()
+  for (const payment of payments) {
+    if (!payment.invoiceId) continue
+    paidByInvoice.set(payment.invoiceId, (paidByInvoice.get(payment.invoiceId) || 0) + payment.amount)
+  }
+  return invoices.map((invoice) => ({
+    ...invoice,
+    paid: paidByInvoice.get(invoice.id) || 0,
+    balance: invoice.total - (paidByInvoice.get(invoice.id) || 0),
+  }))
+}
+
+export async function getOpenAp(organizationId: string, vendorId?: string) {
+  const bills = await prisma.vendorBill.findMany({
+    where: {
+      organizationId,
+      vendorId: vendorId || undefined,
+      status: { in: ["posted", "partial"] },
+    },
+  })
+  const payments = await prisma.vendorPayment.findMany({
+    where: { organizationId, vendorId: vendorId || undefined },
+  })
+  const paidByBill = new Map<string, number>()
+  for (const payment of payments) {
+    if (!payment.vendorBillId) continue
+    paidByBill.set(payment.vendorBillId, (paidByBill.get(payment.vendorBillId) || 0) + payment.amount)
+  }
+  return bills.map((bill) => ({
+    ...bill,
+    paid: paidByBill.get(bill.id) || 0,
+    balance: bill.total - (paidByBill.get(bill.id) || 0),
+  }))
+}
+
+type DocumentLineInput = {
+  description: string
+  quantity: number
+  unitPrice: number
+  itemId?: string
 }
 
 export async function createCustomerInvoiceWithPosting({
@@ -45,22 +144,66 @@ export async function createCustomerInvoiceWithPosting({
   createdById,
   description,
   taxableAmount,
+  lines,
+  salesOrderId,
+  sourceFileId,
 }: {
   organizationId: string
   customerId?: string
   createdById?: string
   description: string
-  taxableAmount: number
+  taxableAmount?: number
+  lines?: DocumentLineInput[]
+  salesOrderId?: string
+  sourceFileId?: string
 }) {
-  const subtotal = Math.round(taxableAmount)
-  const taxTotal = Math.round(subtotal * 0.05)
-  const total = subtotal + taxTotal
-  const [ar, revenue, gstPayable, gstTaxCode] = await Promise.all([
+  if (sourceFileId) {
+    const existing = await prisma.customerInvoice.findFirst({ where: { organizationId, sourceFileId } })
+    if (existing) return existing
+  }
+
+  const customer = customerId ? await getCustomer(organizationId, customerId) : null
+  const taxExempt = Boolean(customer?.taxExempt)
+  const rate = taxExempt ? 0 : await getDefaultGstRate(organizationId)
+  const collectedCode = await getTaxCode(organizationId, "GST_5_COLLECTED")
+  const invoiceLines = lines?.length
+    ? lines.map((line) => ({
+        description: line.description,
+        quantity: Math.max(1, Math.round(line.quantity || 1)),
+        unitPrice: Math.round(line.unitPrice),
+        itemId: line.itemId,
+        total: Math.max(1, Math.round(line.quantity || 1)) * Math.round(line.unitPrice),
+      }))
+    : [
+        {
+          description,
+          quantity: 1,
+          unitPrice: Math.round(taxableAmount || 0),
+          itemId: undefined as string | undefined,
+          total: Math.round(taxableAmount || 0),
+        },
+      ]
+  const subtotal = invoiceLines.reduce((sum, line) => sum + line.total, 0)
+  const totals = taxableTotals(subtotal, rate, taxExempt)
+  const [ar, revenue, gstPayable] = await Promise.all([
     getAccount(organizationId, "1100"),
     getAccount(organizationId, "4000"),
     getAccount(organizationId, "2100"),
-    getTaxCode(organizationId, "GST_5_COLLECTED"),
   ])
+
+  const journalLines: JournalLineInput[] = [
+    { accountId: ar.id, debit: totals.total, credit: 0, memo: description },
+    { accountId: revenue.id, debit: 0, credit: totals.subtotal, memo: description },
+  ]
+  if (totals.taxTotal > 0) {
+    journalLines.push({
+      accountId: gstPayable.id,
+      debit: 0,
+      credit: totals.taxTotal,
+      memo: "GST collected",
+      taxCodeId: collectedCode.id,
+    })
+  }
 
   const journalEntry = await createBalancedJournalEntry({
     organizationId,
@@ -68,26 +211,49 @@ export async function createCustomerInvoiceWithPosting({
     description: `Invoice: ${description}`,
     postedAt: new Date(),
     source: "customer_invoice",
-    lines: [
-      { accountId: ar.id, debit: total, credit: 0, memo: description },
-      { accountId: revenue.id, debit: 0, credit: subtotal, memo: description },
-      { accountId: gstPayable.id, debit: 0, credit: taxTotal, memo: "GST collected", taxCodeId: gstTaxCode.id },
-    ],
+    sourceId: sourceFileId,
+    lines: journalLines,
   })
 
-  return prisma.customerInvoice.create({
+  const invoice = await prisma.customerInvoice.create({
     data: {
       organizationId,
       invoiceNumber: await getNextNumber(organizationId, "customer_invoice"),
       customerId,
+      salesOrderId,
       journalEntryId: journalEntry.id,
+      sourceFileId,
       status: "posted",
-      subtotal,
-      taxTotal,
-      total,
+      subtotal: totals.subtotal,
+      taxTotal: totals.taxTotal,
+      total: totals.total,
       dueAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
   })
+
+  await prisma.invoiceLine.createMany({
+    data: invoiceLines.map((line) => ({
+      organizationId,
+      invoiceId: invoice.id,
+      itemId: line.itemId,
+      description: line.description,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      taxCodeId: totals.taxTotal > 0 ? collectedCode.id : undefined,
+      total: line.total,
+    })),
+  })
+
+  await writeAuditLog({
+    organizationId,
+    userId: createdById,
+    action: "invoice.post",
+    entityType: "customer_invoice",
+    entityId: invoice.id,
+    data: { total: invoice.total, taxTotal: invoice.taxTotal },
+  })
+
+  return invoice
 }
 
 export async function createVendorBillWithPosting({
@@ -96,22 +262,54 @@ export async function createVendorBillWithPosting({
   createdById,
   description,
   taxableAmount,
+  sourceFileId,
+  goodsReceiptId,
+  purchaseOrderId,
+  warnWithoutGstNumber = true,
 }: {
   organizationId: string
   vendorId?: string
   createdById?: string
   description: string
   taxableAmount: number
+  sourceFileId?: string
+  goodsReceiptId?: string
+  purchaseOrderId?: string
+  warnWithoutGstNumber?: boolean
 }) {
-  const subtotal = Math.round(taxableAmount)
-  const taxTotal = Math.round(subtotal * 0.05)
-  const total = subtotal + taxTotal
-  const [expense, gstItc, ap, gstTaxCode] = await Promise.all([
+  if (sourceFileId) {
+    const existing = await prisma.vendorBill.findFirst({ where: { organizationId, sourceFileId } })
+    if (existing) return existing
+  }
+
+  const vendor = vendorId ? await getVendor(organizationId, vendorId) : null
+  const rate = await getDefaultGstRate(organizationId)
+  const itcCode = await getTaxCode(organizationId, "GST_5_ITC")
+  const claimItc = Boolean(!vendor || vendor.gstNumber)
+  const totals = taxableTotals(Math.round(taxableAmount), claimItc ? rate : 0)
+
+  const [expense, gstItc, ap, grni] = await Promise.all([
     getAccount(organizationId, "6040"),
     getAccount(organizationId, "1160"),
     getAccount(organizationId, "2000"),
-    getTaxCode(organizationId, "GST_5_ITC"),
+    getAccount(organizationId, "2010").catch(() => getAccount(organizationId, "2000")),
   ])
+
+  const journalLines: JournalLineInput[] = goodsReceiptId
+    ? [
+        { accountId: grni.id, debit: totals.subtotal, credit: 0, memo: description },
+        ...(totals.taxTotal > 0
+          ? [{ accountId: gstItc.id, debit: totals.taxTotal, credit: 0, memo: "GST ITC", taxCodeId: itcCode.id }]
+          : []),
+        { accountId: ap.id, debit: 0, credit: totals.total, memo: description },
+      ]
+    : [
+        { accountId: expense.id, debit: totals.subtotal, credit: 0, memo: description },
+        ...(totals.taxTotal > 0
+          ? [{ accountId: gstItc.id, debit: totals.taxTotal, credit: 0, memo: "GST ITC", taxCodeId: itcCode.id }]
+          : []),
+        { accountId: ap.id, debit: 0, credit: totals.total, memo: description },
+      ]
 
   const journalEntry = await createBalancedJournalEntry({
     organizationId,
@@ -119,26 +317,41 @@ export async function createVendorBillWithPosting({
     description: `Vendor bill: ${description}`,
     postedAt: new Date(),
     source: "vendor_bill",
-    lines: [
-      { accountId: expense.id, debit: subtotal, credit: 0, memo: description },
-      { accountId: gstItc.id, debit: taxTotal, credit: 0, memo: "GST ITC", taxCodeId: gstTaxCode.id },
-      { accountId: ap.id, debit: 0, credit: total, memo: description },
-    ],
+    sourceId: sourceFileId,
+    lines: journalLines,
   })
 
-  return prisma.vendorBill.create({
+  const bill = await prisma.vendorBill.create({
     data: {
       organizationId,
       billNumber: await getNextNumber(organizationId, "vendor_bill"),
       vendorId,
       journalEntryId: journalEntry.id,
+      purchaseOrderId,
+      goodsReceiptId,
+      sourceFileId,
       status: "posted",
-      subtotal,
-      taxTotal,
-      total,
+      subtotal: totals.subtotal,
+      taxTotal: totals.taxTotal,
+      total: totals.total,
       dueAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
   })
+
+  await writeAuditLog({
+    organizationId,
+    userId: createdById,
+    action: "bill.post",
+    entityType: "vendor_bill",
+    entityId: bill.id,
+    data: {
+      total: bill.total,
+      taxTotal: bill.taxTotal,
+      missingGstNumber: warnWithoutGstNumber && vendor && !vendor.gstNumber,
+    },
+  })
+
+  return bill
 }
 
 export async function createCustomerPaymentWithPosting({
@@ -147,13 +360,23 @@ export async function createCustomerPaymentWithPosting({
   createdById,
   amount,
   memo,
+  invoiceId,
 }: {
   organizationId: string
   customerId?: string
   createdById?: string
   amount: number
   memo?: string
+  invoiceId?: string
 }) {
+  const payAmount = Math.round(amount)
+  if (invoiceId) {
+    const open = await getOpenAr(organizationId)
+    const invoice = open.find((row) => row.id === invoiceId)
+    if (!invoice) throw new Error("Invoice not found or already paid")
+    if (payAmount > invoice.balance) throw new Error("Payment exceeds invoice balance")
+  }
+
   const [cash, ar] = await Promise.all([getAccount(organizationId, "1000"), getAccount(organizationId, "1100")])
   const journalEntry = await createBalancedJournalEntry({
     organizationId,
@@ -161,15 +384,27 @@ export async function createCustomerPaymentWithPosting({
     description: memo || "Customer payment",
     postedAt: new Date(),
     source: "customer_payment",
+    sourceId: invoiceId,
     lines: [
-      { accountId: cash.id, debit: amount, credit: 0, memo },
-      { accountId: ar.id, debit: 0, credit: amount, memo },
+      { accountId: cash.id, debit: payAmount, credit: 0, memo },
+      { accountId: ar.id, debit: 0, credit: payAmount, memo },
     ],
   })
 
-  return prisma.customerPayment.create({
-    data: { organizationId, customerId, journalEntryId: journalEntry.id, amount, memo },
+  const payment = await prisma.customerPayment.create({
+    data: { organizationId, customerId, invoiceId, journalEntryId: journalEntry.id, amount: payAmount, memo },
   })
+
+  if (invoiceId) {
+    const open = await getOpenAr(organizationId)
+    const invoice = open.find((row) => row.id === invoiceId)
+    await prisma.customerInvoice.update({
+      where: { id: invoiceId },
+      data: { status: !invoice || invoice.balance <= 0 ? "paid" : "partial" },
+    })
+  }
+
+  return payment
 }
 
 export async function createVendorPaymentWithPosting({
@@ -178,13 +413,23 @@ export async function createVendorPaymentWithPosting({
   createdById,
   amount,
   memo,
+  vendorBillId,
 }: {
   organizationId: string
   vendorId?: string
   createdById?: string
   amount: number
   memo?: string
+  vendorBillId?: string
 }) {
+  const payAmount = Math.round(amount)
+  if (vendorBillId) {
+    const open = await getOpenAp(organizationId)
+    const bill = open.find((row) => row.id === vendorBillId)
+    if (!bill) throw new Error("Vendor bill not found or already paid")
+    if (payAmount > bill.balance) throw new Error("Payment exceeds bill balance")
+  }
+
   const [ap, cash] = await Promise.all([getAccount(organizationId, "2000"), getAccount(organizationId, "1000")])
   const journalEntry = await createBalancedJournalEntry({
     organizationId,
@@ -192,15 +437,27 @@ export async function createVendorPaymentWithPosting({
     description: memo || "Vendor payment",
     postedAt: new Date(),
     source: "vendor_payment",
+    sourceId: vendorBillId,
     lines: [
-      { accountId: ap.id, debit: amount, credit: 0, memo },
-      { accountId: cash.id, debit: 0, credit: amount, memo },
+      { accountId: ap.id, debit: payAmount, credit: 0, memo },
+      { accountId: cash.id, debit: 0, credit: payAmount, memo },
     ],
   })
 
-  return prisma.vendorPayment.create({
-    data: { organizationId, vendorId, journalEntryId: journalEntry.id, amount, memo },
+  const payment = await prisma.vendorPayment.create({
+    data: { organizationId, vendorId, vendorBillId, journalEntryId: journalEntry.id, amount: payAmount, memo },
   })
+
+  if (vendorBillId) {
+    const open = await getOpenAp(organizationId)
+    const bill = open.find((row) => row.id === vendorBillId)
+    await prisma.vendorBill.update({
+      where: { id: vendorBillId },
+      data: { status: !bill || bill.balance <= 0 ? "paid" : "partial" },
+    })
+  }
+
+  return payment
 }
 
 async function getAccount(organizationId: string, code: string) {
@@ -210,7 +467,8 @@ async function getAccount(organizationId: string, code: string) {
 }
 
 async function getTaxCode(organizationId: string, code: string) {
-  const taxCode = await prisma.taxCode.findUnique({ where: { organizationId_code: { organizationId, code } } })
+  const taxCodes = await getTaxCodes(organizationId)
+  const taxCode = taxCodes.find((item) => item.code === code)
   if (!taxCode) throw new Error(`Missing tax code ${code}`)
   return taxCode
 }

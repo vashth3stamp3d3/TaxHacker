@@ -10,6 +10,7 @@ import {
   reconcileChatAmounts,
   taxYearFromAdvisorUrl,
 } from "@/lib/tax/t2-worksheet"
+import { loadEntitySnapshot, upsertAdvisorThread } from "@/models/advisor"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { getT2Worksheet } from "@/models/t2"
 import { getLLMSettings, getSettings } from "@/models/settings"
@@ -93,6 +94,16 @@ export async function POST(request: NextRequest) {
     const messages = Array.isArray(body.messages) ? (body.messages as ChatMessage[]) : []
     const latestMessage = messages.filter((message) => message.role === "user").at(-1)
     const pageContext = buildPageContext((body.pageContext || {}) as PageContext)
+    const organization = await ensureActiveOrganization(user)
+    const entityRef = body.entityRef || {}
+    const entitySnapshot = await loadEntitySnapshot(
+      organization.id,
+      entityRef.type || body.pageContext?.entityType,
+      entityRef.id || body.pageContext?.entityId
+    )
+    const booksContext = entitySnapshot
+      ? `Structured ERP record:\n${entitySnapshot.text}`
+      : "No structured ERP entity was attached. Use page text cautiously."
 
     if (!latestMessage?.content?.trim()) {
       return NextResponse.json({ error: "Ask a tax question first." }, { status: 400 })
@@ -124,13 +135,12 @@ export async function POST(request: NextRequest) {
       .join("\n\n")
 
     const worksheetYear = taxYearFromAdvisorUrl((body.pageContext || {}).url)
-    let worksheetContext = "No T2 worksheet was requested for this page."
+    let worksheetContext = booksContext
     let reconciliationText = ""
     if (worksheetYear) {
-      const organization = await ensureActiveOrganization(user)
       const worksheet = await getT2Worksheet(organization.id, worksheetYear)
       const reconciliation = reconcileChatAmounts(worksheet, latestMessage.content)
-      worksheetContext = formatWorksheetForAdvisor(worksheet)
+      worksheetContext = `${booksContext}\n\n${formatWorksheetForAdvisor(worksheet)}`
       reconciliationText = formatReconciliation(worksheet, reconciliation)
     }
 
@@ -165,8 +175,25 @@ export async function POST(request: NextRequest) {
       answerLength: answer.length,
     })
 
+    const thread = await upsertAdvisorThread({
+      organizationId: organization.id,
+      userId: user.id,
+      threadId: typeof body.threadId === "string" ? body.threadId : null,
+      title: latestMessage.content.slice(0, 80),
+      entityType: entitySnapshot?.type,
+      entityId: entitySnapshot?.id,
+      userMessage: latestMessage.content,
+      assistantMessage: answer,
+      sources: excerpts.map((excerpt) => ({
+        guideId: excerpt.guideId,
+        title: excerpt.title,
+        sourceUrl: excerpt.sourceUrl,
+      })),
+    })
+
     return NextResponse.json({
       answer,
+      threadId: thread?.id,
       sources: excerpts.map((excerpt) => ({
         guideId: excerpt.guideId,
         title: excerpt.title,

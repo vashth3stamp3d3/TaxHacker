@@ -7,24 +7,25 @@ import path from "path"
 import { cache } from "react"
 import { getTransactionById } from "./transactions"
 
-export const getUnsortedFiles = cache(async (userId: string) => {
+function unsortedWhere(userId: string, organizationId?: string) {
+  return {
+    isReviewed: false,
+    ...(organizationId ? { OR: [{ organizationId }, { userId, organizationId: null }] } : { userId }),
+  }
+}
+
+export const getUnsortedFiles = cache(async (userId: string, organizationId?: string) => {
   return await prisma.file.findMany({
-    where: {
-      isReviewed: false,
-      userId,
-    },
+    where: unsortedWhere(userId, organizationId),
     orderBy: {
       createdAt: "desc",
     },
   })
 })
 
-export const getUnsortedFilesCount = cache(async (userId: string) => {
+export const getUnsortedFilesCount = cache(async (userId: string, organizationId?: string) => {
   return await prisma.file.count({
-    where: {
-      isReviewed: false,
-      userId,
-    },
+    where: unsortedWhere(userId, organizationId),
   })
 })
 

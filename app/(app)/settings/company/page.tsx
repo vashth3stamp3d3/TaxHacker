@@ -1,9 +1,11 @@
-import { updateCompanyAction } from "@/app/(app)/settings/company/actions"
+import { updateCompanyAction, updateMemberRoleAction } from "@/app/(app)/settings/company/actions"
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getCurrentUser } from "@/lib/auth"
+import { getOrganizationMembers } from "@/models/access"
 import { ensureActiveOrganization } from "@/models/organizations"
 
 export const metadata = {
@@ -13,9 +15,16 @@ export const metadata = {
 export default async function CompanySettingsPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
+  const members = await getOrganizationMembers(organization.id)
 
   return (
-    <div className="w-full max-w-3xl">
+    <div className="flex w-full max-w-3xl flex-col gap-5">
+      <PortalPageHeader
+        title="Company ERP"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description="Alberta GST and owner identity used across books, invoices, and the tax advisor"
+      />
       <Card>
         <CardHeader>
           <CardTitle>Canadian company setup</CardTitle>
@@ -34,6 +43,15 @@ export default async function CompanySettingsPage() {
             <div>
               <Label htmlFor="tradeName">Trade name</Label>
               <Input id="tradeName" name="tradeName" defaultValue={organization.tradeName || ""} />
+            </div>
+            <div>
+              <Label htmlFor="ownerDisplayName">Owner display name</Label>
+              <Input
+                id="ownerDisplayName"
+                name="ownerDisplayName"
+                defaultValue={organization.ownerDisplayName || ""}
+                placeholder="Used on shareholder loan prompts"
+              />
             </div>
             <div>
               <Label htmlFor="businessNumber">CRA business number</Label>
@@ -84,6 +102,38 @@ export default async function CompanySettingsPage() {
             </div>
             <Button type="submit">Save Company Setup</Button>
           </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Portal members</CardTitle>
+          <CardDescription>
+            Site password is the outer lock. These roles control who can post, remit GST, consume inventory, or restore
+            backups.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {members.map((member) => (
+            <form key={member.id} action={updateMemberRoleAction} className="flex flex-wrap items-center gap-3">
+              <input type="hidden" name="memberId" value={member.id} />
+              <div className="min-w-48 flex-1">
+                <div className="font-medium">{member.user.name || member.user.email}</div>
+                <div className="text-sm text-muted-foreground">{member.user.email}</div>
+              </div>
+              <select
+                name="role"
+                defaultValue={member.role}
+                className="rounded-md border bg-background px-3 py-2 text-sm"
+              >
+                <option value="owner">Owner</option>
+                <option value="staff">Staff</option>
+                <option value="accountant">Accountant</option>
+              </select>
+              <Button type="submit" variant="outline" size="sm">
+                Save role
+              </Button>
+            </form>
+          ))}
         </CardContent>
       </Card>
     </div>

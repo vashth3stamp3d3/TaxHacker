@@ -25,10 +25,15 @@ export const fieldsToJsonSchema = (fields: Field[]) => {
           additionalProperties: false,
         },
       },
+      documentType: {
+        type: "string",
+        description:
+          "Document kind: receipt, vendor_invoice, customer_invoice, credit_memo, bank_statement, packing_slip, or other.",
+      },
       accountingLines: {
         type: "array",
         description:
-          "Balanced double-entry bookkeeping suggestion in dollars. Use account codes from the supplied chart of accounts. For owner-paid business purchases, debit the expense/inventory/tax accounts and credit account 2310 Shareholder Loan - Jerrold.",
+          "Balanced double-entry bookkeeping suggestion in dollars. Use account codes from the supplied chart of accounts. For owner-paid business purchases, debit the expense/inventory/tax accounts and credit account 2310 Shareholder Loan - Owner.",
         items: {
           type: "object",
           properties: {
@@ -96,6 +101,7 @@ export const fieldsToJsonSchema = (fields: Field[]) => {
     required: [
       ...Object.keys(schemaProperties),
       "items",
+      "documentType",
       "accountingLines",
       "taxTreatment",
       "paymentMethodSuggestion",

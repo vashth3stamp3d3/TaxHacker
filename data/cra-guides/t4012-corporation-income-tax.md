@@ -13,7 +13,7 @@ CRA guide version observed: T4012(E) Rev. 24, "T2 Corporation - Income Tax Guide
 
 CRA caution: This guide uses plain language to explain the most common tax situations. It is provided for information only and does not replace the law. Unless otherwise stated, legislative references are to the Income Tax Act or Income Tax Regulations.
 
-## Scope
+## T2 taxable income from accounting net income
 
 The T4012 guide explains common corporation income tax situations for corporations filing a T2 Corporation Income Tax Return. It is organized by pages and chapters of the T2 return.
 
@@ -25,6 +25,10 @@ Topics include:
 - Pages 6 and 7 of the T2 return: refundable portion of Part I tax, refundable dividend tax on hand, and dividend refund.
 - Page 8 and page 9 of the T2 return: additional tax return areas and related corporation schedules.
 - Appendices: federal, provincial, and territorial corporation schedules and forms; handling business taxes online; electronic payments.
+
+Accounting net income is the starting point, not taxable income. Schedule 1 adds back non-deductible items such as accounting depreciation, taxable benefits that were not added, and many reserves, then deducts capital cost allowance, allowable charitable donations within limits, and other statutory deductions. A Canadian-controlled private corporation (CCPC) may access the small business deduction on active business income up to the federal business limit, subject to taxable-capital grinding and associated-corporation sharing. Investment income of a CCPC is generally taxed differently from active business income and can affect refundable dividend tax on hand.
+
+Alberta currently has no provincial sales tax, but corporations still file federal T2 and Alberta corporate income tax. GST net tax is not corporate income tax. This portal's T2 worksheet is a planning estimate from the general ledger plus Schedule 1-style adjustments. It is not a filed T2, T2 XML, or CRA efile package.
 
 ## Advisor usage
 

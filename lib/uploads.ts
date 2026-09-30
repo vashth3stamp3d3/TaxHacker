@@ -1,5 +1,6 @@
 import { File as PrismaFile, User } from "@/prisma/client"
 import { createFile } from "@/models/files"
+import { getActiveOrganization } from "@/models/organizations"
 import { randomUUID } from "crypto"
 import { mkdir, writeFile } from "fs/promises"
 import path from "path"
@@ -76,11 +77,14 @@ export async function ingestUnsortedFile(
   await mkdir(path.dirname(fullFilePath), { recursive: true })
   await writeFile(fullFilePath, input.buffer)
 
+  const organization = await getActiveOrganization(user.id)
+
   return await createFile(user.id, {
     id: fileUuid,
     filename: input.filename,
     path: relativeFilePath,
     mimetype: input.mimetype,
     metadata: { size: input.buffer.length, ...input.metadata },
+    organizationId: organization?.id,
   })
 }

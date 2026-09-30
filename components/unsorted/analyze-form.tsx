@@ -18,7 +18,8 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ActionState } from "@/lib/actions"
 import { analyzeLimiter, analyzeProgress } from "@/lib/analyze-queue"
-import { Category, Currency, Field, File, LedgerAccount, PaymentMethod, Project, Transaction } from "@/prisma/client"
+import { suggestedDestination } from "@/lib/tax/gst"
+import { Category, Currency, Field, File, Item, LedgerAccount, PaymentMethod, Project, Transaction, Warehouse } from "@/prisma/client"
 import { format } from "date-fns"
 import { ArrowDownToLine, Brain, Loader2, Trash2 } from "lucide-react"
 import { startTransition, useEffect, useActionState, useMemo, useState } from "react"
@@ -28,7 +29,7 @@ import { DuplicateModal } from "../transactions/duplicate-modal"
 const MAX_ANALYZE_RETRIES = 8
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
-function SaveButton({ isSaving, disabled }: { isSaving: boolean; disabled?: boolean }) {
+function SaveButton({ isSaving, disabled, label }: { isSaving: boolean; disabled?: boolean; label: string }) {
   const { pending } = useFormStatus()
   const loading = pending || isSaving
 
@@ -42,7 +43,7 @@ function SaveButton({ isSaving, disabled }: { isSaving: boolean; disabled?: bool
       ) : (
         <>
           <ArrowDownToLine className="h-4 w-4" />
-          Save as Transaction
+          {label}
         </>
       )}
     </Button>
@@ -79,6 +80,8 @@ export default function AnalyzeForm({
   settings,
   ledgerAccounts,
   paymentMethods,
+  items = [],
+  warehouses = [],
   analyzeConcurrency,
 }: {
   file: File
@@ -89,6 +92,8 @@ export default function AnalyzeForm({
   settings: Record<string, string>
   ledgerAccounts: LedgerAccount[]
   paymentMethods: PaymentMethod[]
+  items?: Item[]
+  warehouses?: Warehouse[]
   analyzeConcurrency: number
 }) {
   const { showNotification } = useNotification()
@@ -104,6 +109,7 @@ export default function AnalyzeForm({
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false)
   const [duplicateData, setDuplicateData] = useState<ActionState<Transaction>["duplicateData"] | null>(null)
   const [pendingFormData, setPendingFormData] = useState<FormData | null>(null)
+  const [destination, setDestination] = useState("paid_expense")
 
   useEffect(() => {
     analyzeLimiter.setMax(analyzeConcurrency)
@@ -307,6 +313,7 @@ export default function AnalyzeForm({
           ...nonEmptyFields,
           paymentMethodId: suggestedPaymentMethod?.id || formData.paymentMethodId || paymentMethods[0]?.id || "",
         })
+        setDestination(suggestedDestination(String(nonEmptyFields.documentType || "receipt")))
       }
     } catch (error) {
       analyzeProgress.setState(file.id, "error")
@@ -606,6 +613,53 @@ export default function AnalyzeForm({
           />
         </div>
 
+        <div className="space-y-3 rounded-lg border p-4">
+          <h3 className="font-semibold">Book into Formulated Tax</h3>
+          <p className="text-sm text-muted-foreground">
+            One source document, one posting. Paid expenses hit the ledger now; bills, invoices, and stock receipts
+            post through the ERP instead of a second journal.
+          </p>
+          <label className="text-sm font-medium">
+            Destination
+            <select
+              name="destination"
+              value={destination}
+              onChange={(event) => setDestination(event.target.value)}
+              className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+            >
+              <option value="paid_expense">Paid expense (TaxHacker + GL)</option>
+              <option value="vendor_bill">Vendor bill (AP + GST ITC)</option>
+              <option value="customer_invoice">Customer invoice (AR + GST collected)</option>
+              <option value="inventory_receipt">Inventory receipt (GRNI, no GST yet)</option>
+            </select>
+          </label>
+          {destination === "inventory_receipt" && (
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="text-sm font-medium">
+                Item
+                <select name="itemId" className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm">
+                  <option value="">Create from merchant name</option>
+                  {items.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.sku} · {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm font-medium">
+                Warehouse
+                <select name="warehouseId" className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm">
+                  {warehouses.map((warehouse) => (
+                    <option key={warehouse.id} value={warehouse.id}>
+                      {warehouse.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+        </div>
+
         <div className="flex justify-between gap-4 pt-6">
           <Button
             type="button"
@@ -626,7 +680,19 @@ export default function AnalyzeForm({
             )}
           </Button>
 
-          <SaveButton isSaving={isSaving} disabled={accountingLines.length > 0 && debitTotal !== creditTotal} />
+          <SaveButton
+            isSaving={isSaving}
+            disabled={destination === "paid_expense" && accountingLines.length > 0 && debitTotal !== creditTotal}
+            label={
+              destination === "vendor_bill"
+                ? "Save as vendor bill"
+                : destination === "customer_invoice"
+                  ? "Save as customer invoice"
+                  : destination === "inventory_receipt"
+                    ? "Save as inventory receipt"
+                    : "Save as paid expense"
+            }
+          />
         </div>
 
         <div>

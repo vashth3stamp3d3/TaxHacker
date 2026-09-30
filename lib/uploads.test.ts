@@ -21,6 +21,9 @@ vi.mock("@/models/files", () => ({
     return row
   }),
 }))
+vi.mock("@/models/organizations", () => ({
+  getActiveOrganization: vi.fn(async () => ({ id: "org-1" })),
+}))
 
 const { ingestUnsortedFile } = await import("./uploads")
 
@@ -48,5 +51,6 @@ describe("ingestUnsortedFile", () => {
     const onDisk = await readFile(path.join(tmpRoot, user.email, file.path))
     expect(onDisk.equals(buffer)).toBe(true)
     expect(created).toHaveLength(1)
+    expect(created[0].organizationId).toBe("org-1")
   })
 })

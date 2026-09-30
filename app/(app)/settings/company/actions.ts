@@ -1,13 +1,12 @@
 "use server"
 
 import { prisma } from "@/lib/db"
-import { getCurrentUser } from "@/lib/auth"
-import { ensureActiveOrganization } from "@/models/organizations"
+import { PORTAL_ROLES } from "@/lib/portal-access"
+import { requirePortalContext } from "@/models/access"
 import { revalidatePath } from "next/cache"
 
 export async function updateCompanyAction(formData: FormData) {
-  const user = await getCurrentUser()
-  const organization = await ensureActiveOrganization(user)
+  const { organization } = await requirePortalContext("company_settings")
   await prisma.organization.update({
     where: { id: organization.id },
     data: {
@@ -19,9 +18,24 @@ export async function updateCompanyAction(formData: FormData) {
       gstRemittanceFrequency: String(formData.get("gstRemittanceFrequency") || "quarterly"),
       accountantName: String(formData.get("accountantName") || "") || null,
       accountantEmail: String(formData.get("accountantEmail") || "") || null,
+      ownerDisplayName: String(formData.get("ownerDisplayName") || "") || null,
       address: String(formData.get("address") || "") || null,
     },
   })
   revalidatePath("/settings/company")
   revalidatePath("/")
+}
+
+export async function updateMemberRoleAction(formData: FormData) {
+  const { organization } = await requirePortalContext("members")
+  const memberId = String(formData.get("memberId") || "")
+  const role = String(formData.get("role") || "staff")
+  if (!PORTAL_ROLES.includes(role as (typeof PORTAL_ROLES)[number])) {
+    throw new Error("Choose owner, staff, or accountant")
+  }
+  await prisma.organizationMember.updateMany({
+    where: { id: memberId, organizationId: organization.id },
+    data: { role },
+  })
+  revalidatePath("/settings/company")
 }

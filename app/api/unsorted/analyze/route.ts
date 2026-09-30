@@ -7,6 +7,7 @@ import { getSession, isAiBalanceExhausted, isSubscriptionExpired } from "@/lib/a
 import { DEFAULT_PROMPT_ANALYSE_NEW_FILE } from "@/models/defaults"
 import { getLedgerAccounts, getPaymentMethods, getTaxCodes } from "@/models/accounting"
 import { getFileById } from "@/models/files"
+import { saveDocumentClassification } from "@/models/documents"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { getCategories } from "@/models/categories"
 import { getFields } from "@/models/fields"
@@ -107,11 +108,25 @@ export async function POST(request: NextRequest) {
     projects
   )}
 
-${buildAccountingContext({ accounts, taxCodes, paymentMethods })}`
+${buildAccountingContext({ accounts, taxCodes, paymentMethods, ownerDisplayName: organization.ownerDisplayName })}`
 
   const schema = fieldsToJsonSchema(fields)
 
   const results = await analyzeTransaction(prompt, schema, attachments, file.id, user.id)
+
+  if (results.success && results.data?.output) {
+    const output = results.data.output as Record<string, any>
+    await saveDocumentClassification({
+      organizationId: organization.id,
+      fileId: file.id,
+      documentType: String(output.documentType || "other"),
+      partyName: output.merchant || output.name,
+      taxCode: output.taxTreatment?.code,
+      accountCode: output.accountingLines?.[0]?.accountCode,
+      confidence: Number(output.taxTreatment?.confidence || 0),
+      extractedData: output,
+    }).catch(() => null)
+  }
 
   if (results.data?.tokensUsed && results.data.tokensUsed > 0) {
     await updateUser(user.id, { aiBalance: { decrement: 1 } })
@@ -125,16 +140,20 @@ function buildAccountingContext({
   accounts,
   taxCodes,
   paymentMethods,
+  ownerDisplayName,
 }: {
   accounts: Awaited<ReturnType<typeof getLedgerAccounts>>
   taxCodes: Awaited<ReturnType<typeof getTaxCodes>>
   paymentMethods: Awaited<ReturnType<typeof getPaymentMethods>>
+  ownerDisplayName?: string | null
 }) {
   return [
     "Accounting context for this Alberta Canadian print shop:",
     "Use CAD values for debits and credits. Preserve original foreign currency in the normal transaction fields.",
-    "If a business purchase was paid with the owner's personal card, credit account 2310 Shareholder Loan - Jerrold.",
-    "Only use Canadian GST ITC when GST is actually charged or recoverable. Foreign supplier invoices are usually OUT_OF_SCOPE for GST unless Canadian GST is shown.",
+    "If a business purchase was paid with the owner's personal card, credit account 2310 Shareholder Loan - Owner" +
+      (ownerDisplayName ? ` (${ownerDisplayName})` : "") +
+      ".",
+    "Classify documentType as receipt, vendor_invoice, customer_invoice, credit_memo, bank_statement, packing_slip, or other.",
     "",
     "Chart of accounts:",
     ...accounts.map((account) => `- ${account.code}: ${account.name} (${account.type}${account.subtype ? `/${account.subtype}` : ""})`),

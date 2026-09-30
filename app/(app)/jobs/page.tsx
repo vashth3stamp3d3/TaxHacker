@@ -1,4 +1,5 @@
 import { addJobLaborAction, addJobMaterialAction, advanceJobStatusAction, createPrintJobAction } from "@/app/(app)/jobs/actions"
+import { PortalPageHeader } from "@/components/portal/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -29,10 +30,12 @@ export default async function JobsPage() {
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Print Jobs</h1>
-        <p className="text-muted-foreground">Production tracking, material/labor capture, and quote-to-actual costing.</p>
-      </div>
+      <PortalPageHeader
+        title="Print jobs"
+        organizationName={organization.name}
+        gstNumber={organization.gstHstRegistrationNumber}
+        description="Materials consume inventory into WIP; complete recognizes COGS"
+      />
 
       <Card>
         <CardHeader>

@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db"
 import { cache } from "react"
+import { createVendor } from "./commerce"
+import { createInventoryItem, receiveInventory } from "./inventory"
 
 export const getAutomationSuggestions = cache(async (organizationId: string) => {
   return prisma.automationSuggestion.findMany({
@@ -26,8 +28,51 @@ export async function refreshAutomationSuggestions(organizationId: string) {
   ])
 }
 
-export async function updateSuggestionStatus(id: string, status: string) {
-  return prisma.automationSuggestion.update({ where: { id }, data: { status } })
+export async function updateSuggestionStatus(id: string, status: string, approvedById?: string) {
+  return prisma.automationSuggestion.update({
+    where: { id },
+    data: { status, approvedById: status === "approved" ? approvedById : undefined },
+  })
+}
+
+export async function approveSuggestion(organizationId: string, id: string, approvedById?: string) {
+  const suggestion = await prisma.automationSuggestion.findFirst({ where: { id, organizationId } })
+  if (!suggestion) throw new Error("Suggestion not found")
+  if (suggestion.status === "approved") return suggestion
+
+  const proposed = (suggestion.proposedData || {}) as Record<string, unknown>
+  if (suggestion.type === "create_vendor" && typeof proposed.name === "string") {
+    await createVendor(organizationId, {
+      name: proposed.name,
+      gstNumber: typeof proposed.gstNumber === "string" ? proposed.gstNumber : undefined,
+    })
+  }
+  if (suggestion.type === "inventory_reorder") {
+    const itemId = typeof proposed.itemId === "string" ? proposed.itemId : ""
+    const warehouse = await prisma.warehouse.findFirst({ where: { organizationId } })
+    if (itemId && warehouse) {
+      const item = await prisma.item.findFirst({ where: { id: itemId, organizationId } })
+      await receiveInventory({
+        organizationId,
+        itemId,
+        warehouseId: warehouse.id,
+        quantity: Number(proposed.reorderQuantity || proposed.quantity || 10),
+        unitCost: item?.standardCost || 0,
+        createdById: approvedById,
+        sourceType: "automation",
+        sourceId: suggestion.id,
+      })
+    }
+  }
+  if (suggestion.type === "create_item" && typeof proposed.sku === "string" && typeof proposed.name === "string") {
+    await createInventoryItem(organizationId, {
+      sku: proposed.sku,
+      name: proposed.name,
+      standardCost: Number(proposed.standardCost || 0),
+    })
+  }
+
+  return updateSuggestionStatus(id, "approved", approvedById)
 }
 
 async function suggestLowStock(organizationId: string) {
