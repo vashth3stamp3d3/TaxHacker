@@ -42,6 +42,7 @@ export async function createCustomerInvoiceAction(formData: FormData) {
   revalidatePath("/sales")
   revalidatePath("/reports")
   revalidatePath("/taxes/gst")
+  revalidatePath("/taxes/t2")
 }
 
 export async function createCustomerPaymentAction(formData: FormData) {

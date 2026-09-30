@@ -25,6 +25,7 @@ export default async function ReportsPage() {
     ["Balance Sheet", "/reports/balance-sheet", "Assets, liabilities, and equity."],
     ["Cash Flow", "/reports/cash-flow", "Cash movement summary from cash accounts."],
     ["GST Summary", "/taxes/gst", "GST collected, ITCs, and net remittance."],
+    ["T2 Worksheet", "/taxes/t2", "2025 corporate tax planning estimate from this fiscal year's books."],
   ] as const
 
   return (

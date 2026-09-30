@@ -18,6 +18,7 @@ export async function createVendorBillAction(formData: FormData) {
   revalidatePath("/purchasing")
   revalidatePath("/reports")
   revalidatePath("/taxes/gst")
+  revalidatePath("/taxes/t2")
 }
 
 export async function createVendorPaymentAction(formData: FormData) {

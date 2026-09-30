@@ -398,6 +398,25 @@ model TaxRemittance {
   @@map("tax_remittances")
 }
 
+model T2ScheduleAdjustment {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  taxYear        Int      @map("tax_year")
+  code           String
+  label          String
+  section        String
+  amountCents    Int      @default(0) @map("amount_cents")
+  note           String?
+  sortOrder      Int      @default(0) @map("sort_order")
+  isCustom       Boolean  @default(false) @map("is_custom")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([organizationId, taxYear, code])
+  @@index([organizationId, taxYear])
+  @@map("t2_schedule_adjustments")
+}
+
 model ProvinceTaxProfile {
   id              String  @id @default(uuid()) @db.Uuid
   organizationId  String  @map("organization_id") @db.Uuid

@@ -39,6 +39,7 @@ export async function createJournalEntryAction(
     revalidatePath("/accounting/journal-entries")
     revalidatePath("/reports")
     revalidatePath("/taxes/gst")
+    revalidatePath("/taxes/t2")
 
     return { success: true, data: journalEntry }
   } catch (error) {

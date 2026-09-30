@@ -63,6 +63,7 @@ const erpItems = [
   { title: "Accounting", href: "/accounting", icon: Calculator },
   { title: "Reports", href: "/reports", icon: ChartNoAxesCombined },
   { title: "GST", href: "/taxes/gst", icon: ReceiptText },
+  { title: "T2 Worksheet", href: "/taxes/t2", icon: FileText },
   { title: "Customers", href: "/customers", icon: Users },
   { title: "Vendors", href: "/vendors", icon: BriefcaseBusiness },
   { title: "Sales", href: "/sales", icon: ShoppingCart },

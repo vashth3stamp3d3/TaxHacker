@@ -4,6 +4,14 @@ import { getCurrentUser } from "@/lib/auth"
 import config from "@/lib/config"
 import { errorMessage, logError, logInfo } from "@/lib/logger"
 import { retrieveCraExcerpts } from "@/lib/tax-advisor/cra-corpus"
+import {
+  formatReconciliation,
+  formatWorksheetForAdvisor,
+  reconcileChatAmounts,
+  taxYearFromAdvisorUrl,
+} from "@/lib/tax/t2-worksheet"
+import { ensureActiveOrganization } from "@/models/organizations"
+import { getT2Worksheet } from "@/models/t2"
 import { getLLMSettings, getSettings } from "@/models/settings"
 import { NextRequest, NextResponse } from "next/server"
 
@@ -46,7 +54,7 @@ function buildPageContext(pageContext: PageContext) {
     .join("\n")
 }
 
-function buildPrompt(messages: ChatMessage[], pageContext: string, craContext: string) {
+function buildPrompt(messages: ChatMessage[], pageContext: string, craContext: string, worksheetContext: string) {
   const conversation = messages
     .slice(-8)
     .map((message) => `${message.role === "user" ? "User" : "Advisor"}: ${trimText(message.content, MAX_MESSAGE_CHARS)}`)
@@ -59,9 +67,13 @@ function buildPrompt(messages: ChatMessage[], pageContext: string, craContext: s
     "Alberta has GST at 5% and no HST/PST. Do not invent provincial sales tax rules for Alberta.",
     "Give practical feedback based on the current page context, but do not claim to provide final legal, tax, or accounting sign-off.",
     "If the issue is high-risk, ambiguous, or outside the excerpts, say what to verify with CRA or a CPA.",
+    "When a computed T2 worksheet is supplied, those figures are the source of truth. They were just loaded from the database. Do not prefer numbers copied from the visible page text if they differ.",
+    "If the user states 2025 or other worksheet-year amounts, reconcile them against the computed worksheet and explain any difference. Call the result a planning estimate, not a filed return.",
     "",
     "Current app page context:",
     pageContext || "No page context was captured.",
+    "",
+    worksheetContext,
     "",
     "Relevant CRA reference excerpts:",
     craContext || "No matching CRA excerpt was retrieved. Answer cautiously and recommend checking CRA guidance directly.",
@@ -111,6 +123,17 @@ export async function POST(request: NextRequest) {
       )
       .join("\n\n")
 
+    const worksheetYear = taxYearFromAdvisorUrl((body.pageContext || {}).url)
+    let worksheetContext = "No T2 worksheet was requested for this page."
+    let reconciliationText = ""
+    if (worksheetYear) {
+      const organization = await ensureActiveOrganization(user)
+      const worksheet = await getT2Worksheet(organization.id, worksheetYear)
+      const reconciliation = reconcileChatAmounts(worksheet, latestMessage.content)
+      worksheetContext = formatWorksheetForAdvisor(worksheet)
+      reconciliationText = formatReconciliation(worksheet, reconciliation)
+    }
+
     logInfo("tax_advisor.retrieval", {
       userId: user.id,
       model: TAX_ADVISOR_MODEL,
@@ -130,9 +153,10 @@ export async function POST(request: NextRequest) {
 
     const response = await model.invoke([
       new SystemMessage("You answer as a careful Canadian tax professional using CRA guidance and the current ERP page context."),
-      new HumanMessage(buildPrompt(messages, pageContext, craContext)),
+      new HumanMessage(buildPrompt(messages, pageContext, craContext, worksheetContext)),
     ])
-    const answer = contentToText(response.content).trim()
+    const modelAnswer = contentToText(response.content).trim()
+    const answer = [reconciliationText, modelAnswer].filter(Boolean).join("\n\n")
 
     logInfo("tax_advisor.chat.success", {
       userId: user.id,
