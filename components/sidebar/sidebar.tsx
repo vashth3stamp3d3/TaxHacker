@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/sidebar"
 import { YearSwitcher } from "@/components/portal/year-switcher"
 import { UserProfile } from "@/lib/auth"
-import config from "@/lib/config"
 import {
   Bot,
   BriefcaseBusiness,
@@ -121,7 +120,6 @@ export function AppSidebar({
   const pathname = usePathname()
   const { notification } = useNotification()
   const accountTitle = profile.name || profile.email
-  const accountSubtitle = isSelfHosted ? `Version ${config.app.version}` : profile.email
 
   // Hide sidebar on mobile when clicking an item
   useEffect(() => {

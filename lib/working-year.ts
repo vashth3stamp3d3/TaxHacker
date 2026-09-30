@@ -21,7 +21,8 @@ export function isWorkingYear(value: unknown): value is WorkingYearNumber {
 }
 
 export function parseWorkingYear(value: unknown, fallback: WorkingYearNumber = DEFAULT_WORKING_YEAR): WorkingYearNumber {
-  return isWorkingYear(value) ? Number(value) : fallback
+  const year = Number(value)
+  return isWorkingYear(year) ? year : fallback
 }
 
 export function workingYearRange(year: number): WorkingYear {
