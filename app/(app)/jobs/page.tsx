@@ -256,7 +256,7 @@ function JobStatusForm({ jobs }: { jobs: { id: string; jobNumber: string; name: 
             <option value="in_progress">In progress</option>
             <option value="proofing">Proofing</option>
             <option value="ready">Ready</option>
-            <option value="completed">Completed</option>
+            <option value="complete">Complete</option>
           </select>
           <Button type="submit" disabled={!jobs.length}>
             Update Status

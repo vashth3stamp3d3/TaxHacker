@@ -319,7 +319,8 @@ export async function advancePrintJobStatus(
   const job = await prisma.printJob.findFirst({ where: { id: printJobId, organizationId } })
   if (!job) throw new Error("Print job not found")
 
-  if (status === "complete" && !job.cogsJournalEntryId && job.actualCost > 0) {
+  const normalizedStatus = status === "completed" ? "complete" : status
+  if (normalizedStatus === "complete" && !job.cogsJournalEntryId && job.actualCost > 0) {
     const [cogs, wip] = await Promise.all([getAccount(organizationId, "5000"), getAccount(organizationId, "1300")])
     const entry = await createBalancedJournalEntry({
       organizationId,
@@ -335,13 +336,13 @@ export async function advancePrintJobStatus(
     })
     await prisma.printJob.update({
       where: { id: job.id },
-      data: { status, cogsJournalEntryId: entry.id },
+      data: { status: normalizedStatus, cogsJournalEntryId: entry.id },
     })
   } else {
-    await prisma.printJob.update({ where: { id: printJobId }, data: { status } })
+    await prisma.printJob.update({ where: { id: printJobId }, data: { status: normalizedStatus } })
   }
 
-  return prisma.jobStatusEvent.create({ data: { organizationId, printJobId, status } })
+  return prisma.jobStatusEvent.create({ data: { organizationId, printJobId, status: normalizedStatus } })
 }
 
 async function updateJobActualCost(printJobId: string) {

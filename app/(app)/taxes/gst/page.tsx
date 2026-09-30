@@ -21,7 +21,12 @@ export default async function GstPage({
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
   const periods = await getTaxFilingPeriods(organization.id)
-  const selected = periods.find((period) => period.id === params.period) || periods[0]
+  const now = new Date()
+  const selected =
+    periods.find((period) => period.id === params.period) ||
+    periods.find((period) => period.startsAt <= now && period.endsAt >= now) ||
+    periods.find((period) => period.status === "open") ||
+    periods[0]
   const [register, remittances] = await Promise.all([
     getGstRegister(
       organization.id,
