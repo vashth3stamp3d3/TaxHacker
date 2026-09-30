@@ -25,9 +25,9 @@ export function LedgerSnapshotsCard({
         <CardTitle>Opening and ending balances</CardTitle>
         <CardDescription>
           {year === 2024
-            ? "2024 opening is the first official T2 year. 2024 ending equals 2025 opening."
+            ? "2024 opening is filed Schedule 101 ($100 cash and common shares). 2024 ending is filed Schedule 100."
             : year === 2025
-              ? "2025 opening is the filed 2024 ending so the years tie."
+              ? "2025 opening is the filed 2024 Schedule 100 so the years tie."
               : "Balances for the selected books year."}
         </CardDescription>
       </CardHeader>

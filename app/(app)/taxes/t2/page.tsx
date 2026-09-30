@@ -73,7 +73,7 @@ export default async function T2WorksheetPage({
         </p>
         <p>
           {year === 2024
-            ? "Schedule 125 sales, cost of sales, and expenses match the 2024 return. Enter Schedule 8 CCA as the deduction against the book amortization add-back. Tax below is still a planning estimate."
+            ? "Schedule 125, Schedule 100, and Schedule 8 from the 2024 T2 are on the books. Book amortization $4,183 was added back and class 8 CCA $4,183 was deducted, so taxable income is $11,045. Filed tax is Part I $993 and Alberta $221."
             : worksheet.disclaimer}
         </p>
       </div>

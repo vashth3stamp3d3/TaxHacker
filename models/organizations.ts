@@ -14,6 +14,8 @@ export const FORMULATED_PRINTS_IDENTITY = {
   fiscalYearStartMonth: 1,
   gstRemittanceFrequency: "quarterly",
   ownerDisplayName: "Jerrold Jacobe",
+  businessNumber: "796765758RC0001",
+  phone: "(587) 889-3235",
 } as const
 
 const STARTER_SEQUENCES = [
@@ -54,11 +56,12 @@ const STARTER_ACCOUNTS = [
   ["2100", "GST Collected Payable", "liability", "tax", "credit"],
   ["2110", "GST Remittance Payable", "liability", "tax", "credit"],
   ["2200", "Payroll Liabilities", "liability", "payroll", "credit"],
+  ["2210", "Income Taxes Payable", "liability", "tax", "credit"],
   ["2300", "Credit Card Payable", "liability", "credit_card", "credit"],
   ["2310", "Shareholder Loan - Jerrold", "liability", "owner_reimbursement", "credit"],
   ["2400", "Loans Payable", "liability", "loan", "credit"],
   ["2500", "Customer Deposits", "liability", "deferred_revenue", "credit"],
-  ["3000", "Owner Capital", "equity", "capital", "credit"],
+  ["3000", "Common Shares", "equity", "capital", "credit"],
   ["3100", "Retained Earnings", "equity", "retained_earnings", "credit"],
   ["3200", "Current Year Earnings", "equity", "current_earnings", "credit"],
   ["4000", "Print Sales", "revenue", "sales", "credit"],
@@ -348,7 +351,9 @@ export async function applyFormulatedPrintsIdentity(organizationId: string, user
     organization.entityType !== FORMULATED_PRINTS_IDENTITY.entityType ||
     organization.country !== "CA" ||
     organization.province !== "AB" ||
-    !organization.ownerDisplayName
+    !organization.ownerDisplayName ||
+    organization.businessNumber !== FORMULATED_PRINTS_IDENTITY.businessNumber ||
+    organization.gstHstRegistrationNumber !== FORMULATED_PRINTS_IDENTITY.businessNumber
 
   const updated = needsIdentityUpdate
     ? await prisma.organization.update({
@@ -364,6 +369,9 @@ export async function applyFormulatedPrintsIdentity(organizationId: string, user
           fiscalYearStartMonth: organization.fiscalYearStartMonth || 1,
           gstRemittanceFrequency: organization.gstRemittanceFrequency || "quarterly",
           ownerDisplayName: organization.ownerDisplayName || user?.name || FORMULATED_PRINTS_IDENTITY.ownerDisplayName,
+          businessNumber: FORMULATED_PRINTS_IDENTITY.businessNumber,
+          gstHstRegistrationNumber: FORMULATED_PRINTS_IDENTITY.businessNumber,
+          phone: organization.phone || FORMULATED_PRINTS_IDENTITY.phone,
         },
       })
     : organization
