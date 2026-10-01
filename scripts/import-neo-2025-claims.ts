@@ -1,9 +1,10 @@
 /**
- * Post claimable 2025 Neo Financial Mastercard print-shop charges.
+ * Post claimable 2025 Neo Financial Mastercard shop charges.
  *
- * Twelve monthly journals. Debit labeled expense/equipment accounts and GST ITC.
- * Credit 2310 Shareholder Loan - Jerrold. Personal food, gas, insurance, phone,
+ * Twelve monthly journals. Debit labeled expense/equipment/meals accounts and GST ITC.
+ * Credit 2310 Shareholder Loan - Jerrold. Personal grocery, gas, insurance, phone,
  * already-booked Alibaba Klarna, ENMAX, and TradingView card lines are omitted.
+ * Restaurant meals are booked in full on 6100; T2 adds back 50%.
  *
  * Usage:
  *   npx tsx scripts/import-neo-2025-claims.ts --dry-run
@@ -12,6 +13,8 @@
 import {
   NEO_2025_SOURCE,
   neoClaimTotals,
+  neoMealClaims,
+  neoMealsNondeductibleCents,
   neoMonthBalances,
   neoMonthJournalLines,
   neoMonthlyJournals,
@@ -35,7 +38,12 @@ export async function main() {
       `${month.entryNumber}  ${month.postedOn}  n=${totals.count}  net ${format(totals.netCents)}  GST ${format(totals.gstCents)}  loan ${format(totals.totalCents)}`
     )
   }
+  const meals = neoMealClaims()
+  const mealNet = meals.reduce((sum, claim) => sum + claim.netCents, 0)
   console.log(`Shareholder loan ${format(paid)}  GST ITC ${format(gst)}`)
+  console.log(
+    `Meals ${meals.length}  net ${format(mealNet)}  T2 50% add-back ${format(neoMealsNondeductibleCents())}`
+  )
 
   if (process.argv.includes("--dry-run")) return
 
@@ -51,7 +59,7 @@ export async function main() {
   await seedOrganizationDefaults(identified.id)
   const accounts = await prisma.ledgerAccount.findMany({ where: { organizationId: identified.id } })
   const accountIds = new Map(accounts.map((account) => [account.code, account.id]))
-  for (const code of ["1160", "1600", "2310", "5000", "5040", "5100", "6020", "6050"]) {
+  for (const code of ["1160", "1600", "2310", "5000", "5040", "5100", "6020", "6050", "6100"]) {
     if (!accountIds.has(code)) throw new Error(`Chart of accounts is missing ${code}`)
   }
   const gstItc = await prisma.taxCode.findUnique({
@@ -137,7 +145,7 @@ export async function main() {
         destinationType: "paid_expense",
         note: [
           `Mastercard •••• 6233`,
-          `${totals.count} print-shop charges`,
+          `${totals.count} shop charges`,
           `GST ${format(totals.gstCents)} ITC`,
           "Paid personally. Shareholder loan 2310.",
         ].join(" | "),
@@ -152,7 +160,32 @@ export async function main() {
     })
   }
 
-  console.log(`Posted ${months.length} Neo monthly journals for ${identified.name}`)
+  const mealNetCents = neoMealClaims().reduce((sum, claim) => sum + claim.netCents, 0)
+  const mealAddBack = neoMealsNondeductibleCents()
+  await prisma.t2ScheduleAdjustment.upsert({
+    where: {
+      organizationId_taxYear_code: { organizationId: identified.id, taxYear: 2025, code: "meals_nondeductible" },
+    },
+    update: {
+      amountCents: mealAddBack,
+      note: `50% of Neo 2025 meal expense ${format(mealNetCents)} is not deductible.`,
+      label: "Non-deductible meals and entertainment",
+      section: "schedule1_addition",
+      sortOrder: 20,
+    },
+    create: {
+      organizationId: identified.id,
+      taxYear: 2025,
+      code: "meals_nondeductible",
+      label: "Non-deductible meals and entertainment",
+      section: "schedule1_addition",
+      amountCents: mealAddBack,
+      note: `50% of Neo 2025 meal expense ${format(mealNetCents)} is not deductible.`,
+      sortOrder: 20,
+    },
+  })
+
+  console.log(`Posted ${months.length} Neo monthly journals for ${identified.name}. T2 meals add-back ${format(mealAddBack)}.`)
 }
 
 const isDirectRun = process.argv[1]?.includes("import-neo-2025-claims")

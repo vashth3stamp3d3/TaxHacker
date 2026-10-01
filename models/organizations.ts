@@ -86,6 +86,7 @@ const STARTER_ACCOUNTS = [
   ["6070", "Bank Fees", "expense", "bank_fees", "debit"],
   ["6080", "Professional Fees", "expense", "professional", "debit"],
   ["6090", "Depreciation", "expense", "depreciation", "debit"],
+  ["6100", "Meals and Entertainment", "expense", "meals", "debit"],
 ] as const
 
 export const getActiveOrganization = cache(async (userId: string) => {
