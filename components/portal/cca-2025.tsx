@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { CCA_2025, CCA_2025_YEAR, cca2025AssetRows, formatCad } from "@/lib/cca-2025"
+import { CCA_2025, CCA_2025_YEAR, cca2025AssetRows } from "@/lib/cca-2025"
 import { formatMoney } from "@/models/accounting"
 
 export function Cca2025Card({ year }: { year: number }) {
@@ -68,9 +68,9 @@ export function Cca2025Card({ year }: { year: number }) {
                   <span className="block text-muted-foreground">Class {item.classNumber}</span>
                 </TableCell>
                 <TableCell>
-                  {formatCad(item.basisCents)} {item.basisLabel}
+                  {formatMoney(item.basisCents)} {item.basisLabel}
                 </TableCell>
-                <TableCell className="text-right">{formatCad(item.ccaCents)}</TableCell>
+                <TableCell className="text-right">{formatMoney(item.ccaCents)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
