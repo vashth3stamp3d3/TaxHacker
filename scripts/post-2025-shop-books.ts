@@ -16,6 +16,7 @@ import { main as postShopify } from "./import-shopify-2025-sales"
 import { main as postTradingView } from "./import-tradingview-2025"
 import { main as postMacbook } from "./import-macbook-2025"
 import { main as postNeo } from "./import-neo-2025-claims"
+import { main as postJerrold } from "./import-jerrold-2025-income"
 import { main as postDepreciation } from "./import-2025-depreciation"
 
 export async function main() {
@@ -28,6 +29,7 @@ export async function main() {
   await postTradingView()
   await postMacbook()
   await postNeo()
+  await postJerrold()
   await postDepreciation()
 }
 

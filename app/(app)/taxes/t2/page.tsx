@@ -6,6 +6,7 @@ import {
 } from "@/app/(app)/taxes/t2/actions"
 import { Cca2025Card } from "@/components/portal/cca-2025"
 import { FiledT2GifiCard } from "@/components/portal/filed-t2-gifi"
+import { Jerrold2025IncomeCard } from "@/components/portal/jerrold-2025-income"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
 import { CCA_2025 } from "@/lib/cca-2025"
+import { JERROLD_2025_INCOME } from "@/lib/jerrold-2025-income"
 import { centsToDollarInput, formatCents, formatUtcDate } from "@/lib/tax/t2-worksheet"
 import { WORKING_YEARS, getWorkingYear } from "@/lib/working-year"
 import { formatMoney } from "@/models/accounting"
@@ -77,13 +79,14 @@ export default async function T2WorksheetPage({
           {year === 2024
             ? "Schedule 125, Schedule 100, and Schedule 8 from the 2024 T2 are on the books. Book amortization $4,183 was added back and class 8 CCA $4,183 was deducted, so taxable income is $11,045. Filed tax is Part I $993 and Alberta $221."
             : year === 2025
-              ? `2025 book depreciation is the maximum CCA ${formatMoney(CCA_2025.totalCcaCents)}. That includes the shop machine already on the 2024 T2 (remaining class 8 UCC ${formatMoney(CCA_2025.class8.openingUccCents)} × 20%), class 8 RIIP 30% on the Bambu Lab printer, class 12 100% of Amazon equipment under $500 (${formatMoney(CCA_2025.class12.additionsCents)}), and class 50 first-year 82.5% on the MacBook Pro and Memory Express parts (${formatMoney(CCA_2025.class50.additionsCents)}). Schedule 1 adds the total back and deducts the same CCA, so depreciation does not change taxable income versus the books.`
+              ? `2025 book depreciation is the maximum CCA ${formatMoney(CCA_2025.totalCcaCents)}. That includes the shop machine already on the 2024 T2 (remaining class 8 UCC ${formatMoney(CCA_2025.class8.openingUccCents)} × 20%), class 8 RIIP 30% on the Bambu Lab printer, class 12 100% of Amazon equipment under $500 (${formatMoney(CCA_2025.class12.additionsCents)}), and class 50 first-year 82.5% on the MacBook Pro and Memory Express parts (${formatMoney(CCA_2025.class50.additionsCents)}). Schedule 1 adds the total back and deducts the same CCA, so depreciation does not change taxable income versus the books. Shopify payouts that landed in Jerrold's account are T4 officer wages ${formatMoney(JERROLD_2025_INCOME.wagesCents)}, which reduce book income and are personal income to him.`
               : worksheet.disclaimer}
         </p>
       </div>
 
       <FiledT2GifiCard year={year} />
       <Cca2025Card year={year} />
+      <Jerrold2025IncomeCard year={year} />
 
       {savedMessage ? <div className="rounded-lg border bg-muted px-4 py-3 text-sm">{savedMessage}</div> : null}
       {params.error ? <div className="rounded-lg border border-destructive px-4 py-3 text-sm text-destructive">{params.error}</div> : null}

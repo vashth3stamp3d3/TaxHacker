@@ -22,6 +22,7 @@
     "ledger:tradingview": "tsx scripts/import-tradingview-2025.ts",
     "ledger:macbook": "tsx scripts/import-macbook-2025.ts",
     "ledger:neo": "tsx scripts/import-neo-2025-claims.ts",
+    "ledger:jerrold-2025": "tsx scripts/import-jerrold-2025-income.ts",
     "ledger:cca-2025": "tsx scripts/import-2025-depreciation.ts",
     "ledger:2025": "tsx scripts/post-2025-shop-books.ts",
     "t2:import-2024": "tsx scripts/import-2024-t2.ts",

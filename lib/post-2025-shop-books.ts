@@ -16,6 +16,7 @@ export const SHOP_BOOK_BATCHES_2025 = [
   { id: "tradingview", script: "import-tradingview-2025.ts", entries: 1 },
   { id: "macbook", script: "import-macbook-2025.ts", entries: 1 },
   { id: "neo", script: "import-neo-2025-claims.ts", entries: 12 },
+  { id: "jerrold", script: "import-jerrold-2025-income.ts", entries: 2 },
   { id: "cca", script: "import-2025-depreciation.ts", entries: 1 },
 ] as const
 
