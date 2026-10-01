@@ -19,6 +19,7 @@
     "ledger:dream": "tsx scripts/import-dream-lease-payments.ts",
     "ledger:enmax": "tsx scripts/import-enmax-2025-utilities.ts",
     "ledger:shopify-2025": "tsx scripts/import-shopify-2025-sales.ts",
+    "ledger:cca-2025": "tsx scripts/import-2025-depreciation.ts",
     "ledger:2025": "tsx scripts/post-2025-shop-books.ts",
     "t2:import-2024": "tsx scripts/import-2024-t2.ts",
     "test": "vitest run",

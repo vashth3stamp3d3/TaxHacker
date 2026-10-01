@@ -1,4 +1,5 @@
 import { closePeriodAction } from "@/app/(app)/accounting/actions"
+import { Cca2025Card } from "@/components/portal/cca-2025"
 import { FiledT2GifiCard } from "@/components/portal/filed-t2-gifi"
 import { LedgerSnapshotsCard } from "@/components/portal/ledger-snapshots"
 import { PortalPageHeader } from "@/components/portal/page-header"
@@ -78,6 +79,7 @@ export default async function AccountingPage() {
       </div>
 
       <FiledT2GifiCard year={year.year} />
+      <Cca2025Card year={year.year} />
       <LedgerSnapshotsCard snapshots={snapshots} year={year.year} />
 
       <div className="grid gap-4 md:grid-cols-2">

@@ -4,6 +4,7 @@ import {
   deleteCustomT2AdjustmentAction,
   saveT2AdjustmentsAction,
 } from "@/app/(app)/taxes/t2/actions"
+import { Cca2025Card } from "@/components/portal/cca-2025"
 import { FiledT2GifiCard } from "@/components/portal/filed-t2-gifi"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -74,11 +75,14 @@ export default async function T2WorksheetPage({
         <p>
           {year === 2024
             ? "Schedule 125, Schedule 100, and Schedule 8 from the 2024 T2 are on the books. Book amortization $4,183 was added back and class 8 CCA $4,183 was deducted, so taxable income is $11,045. Filed tax is Part I $993 and Alberta $221."
-            : worksheet.disclaimer}
+            : year === 2025
+              ? "2025 book depreciation is the maximum CCA $7,346.37: class 8 20% of opening UCC $33,624.00 plus class 12 100% of Amazon equipment under $500. Schedule 1 adds that amount back and deducts the same CCA, so depreciation does not change taxable income versus the books."
+              : worksheet.disclaimer}
         </p>
       </div>
 
       <FiledT2GifiCard year={year} />
+      <Cca2025Card year={year} />
 
       {savedMessage ? <div className="rounded-lg border bg-muted px-4 py-3 text-sm">{savedMessage}</div> : null}
       {params.error ? <div className="rounded-lg border border-destructive px-4 py-3 text-sm text-destructive">{params.error}</div> : null}

@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth"
 import { getWorkingYear } from "@/lib/working-year"
 import { formatMoney, getBalanceSheet, getCashFlowStatement, getGstSummary, getIncomeStatement } from "@/models/accounting"
 import { ensureActiveOrganization, getLedgerBalanceSnapshots } from "@/models/organizations"
+import { Cca2025Card } from "@/components/portal/cca-2025"
 import { FiledT2GifiCard } from "@/components/portal/filed-t2-gifi"
 import { LedgerSnapshotsCard } from "@/components/portal/ledger-snapshots"
 import Link from "next/link"
@@ -50,6 +51,7 @@ export default async function ReportsPage() {
       />
 
       <FiledT2GifiCard year={year.year} />
+      <Cca2025Card year={year.year} />
       <LedgerSnapshotsCard snapshots={snapshots} year={year.year} />
 
       <div className="grid gap-4 md:grid-cols-4">
