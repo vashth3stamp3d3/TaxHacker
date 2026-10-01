@@ -1,0 +1,43 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-railway-production
+  cancel-in-progress: true
+
+jobs:
+  railway:
+    name: Railway up
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy Formulated Tax
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "RAILWAY_TOKEN is not set on this repository; skip live deploy."
+            exit 0
+          fi
+          railway up --detach \
+            --project 8d5866e8-20ad-497a-994d-b3bd633aaa89 \
+            --environment production \
+            --service "Formulated Tax" \
+            --message "Post 2025 shop books on live start"

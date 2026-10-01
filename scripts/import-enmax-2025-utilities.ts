@@ -18,12 +18,13 @@ import {
   enmaxNewChargeCents,
   enmaxUtilityCents,
 } from "@/lib/enmax-2025-utilities"
+import { shouldSkipExistingJournals } from "@/lib/post-2025-shop-books"
 
 function format(cents: number) {
   return (cents / 100).toFixed(2)
 }
 
-async function main() {
+export async function main() {
   let utilities = 0
   let gst = 0
   for (const bill of ENMAX_2025_BILLS) {
@@ -69,6 +70,10 @@ async function main() {
     })
     if (existing && existing.source !== ENMAX_2025_SOURCE) {
       throw new Error(`${bill.entryNumber} already exists from ${existing.source}`)
+    }
+    if (existing && shouldSkipExistingJournals()) {
+      console.log(`Skipping ${bill.entryNumber} (already posted)`)
+      continue
     }
     if (existing) await prisma.journalEntry.delete({ where: { id: existing.id } })
 

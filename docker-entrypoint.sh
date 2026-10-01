@@ -16,5 +16,12 @@ echo "PostgreSQL server is ready!"
 echo "Running database migrations..."
 npx prisma migrate deploy
 
+# Idempotent: skip journals already posted. Do not fail the app if a period is closed.
+if [ "${POST_2025_SHOP_BOOKS:-true}" != "false" ]; then
+  echo "Posting 2025 shop books if they are not already on the ledger..."
+  SKIP_EXISTING_JOURNALS=1 npx tsx scripts/post-2025-shop-books.ts --skip-existing \
+    || echo "Shop books seed failed; continuing to start the app."
+fi
+
 echo "Starting: $*"
 exec "$@"

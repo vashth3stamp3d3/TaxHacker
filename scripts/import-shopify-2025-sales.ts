@@ -18,12 +18,13 @@ import {
   shopify2025JournalLines,
   shopify2025OperatingRevenueCents,
 } from "@/lib/shopify-2025-sales"
+import { shouldSkipExistingJournals } from "@/lib/post-2025-shop-books"
 
 function format(cents: number) {
   return (cents / 100).toFixed(2)
 }
 
-async function main() {
+export async function main() {
   const totals = shopify2025Balances()
   if (!totals.balanced) throw new Error("Shopify 2025 sales entry does not balance")
 
@@ -72,6 +73,10 @@ async function main() {
   })
   if (existing && existing.source !== SHOPIFY_2025_SOURCE) {
     throw new Error(`${SHOPIFY_2025_ENTRY} already exists from ${existing.source}`)
+  }
+  if (existing && shouldSkipExistingJournals()) {
+    console.log(`Skipping ${SHOPIFY_2025_ENTRY} (already posted)`)
+    return
   }
   if (existing) await prisma.journalEntry.delete({ where: { id: existing.id } })
 

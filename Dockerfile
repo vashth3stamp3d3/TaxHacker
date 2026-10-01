@@ -67,6 +67,7 @@ COPY --from=builder /app/app ./app
 COPY --from=builder /app/data/cra-guides ./data/cra-guides
 COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/models ./models
+COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/tsconfig.json ./
 COPY --from=builder /app/next.config.ts ./
 

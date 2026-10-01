@@ -14,12 +14,13 @@ import {
   amazonInvoiceBalances,
   amazonJournalLines,
 } from "@/lib/amazon-shareholder-invoices"
+import { shouldSkipExistingJournals } from "@/lib/post-2025-shop-books"
 
 function format(cents: number) {
   return (cents / 100).toFixed(2)
 }
 
-async function main() {
+export async function main() {
   let paid = 0
   for (const invoice of AMAZON_SHAREHOLDER_INVOICES) {
     if (!amazonInvoiceBalances(invoice)) throw new Error(`${invoice.invoiceNumber} does not balance`)
@@ -68,6 +69,10 @@ async function main() {
     })
     if (existing && existing.source !== AMAZON_SHAREHOLDER_SOURCE) {
       throw new Error(`${invoice.invoiceNumber} already exists from ${existing.source}`)
+    }
+    if (existing && shouldSkipExistingJournals()) {
+      console.log(`Skipping ${invoice.invoiceNumber} (already posted)`)
+      continue
     }
     if (existing) await prisma.journalEntry.delete({ where: { id: existing.id } })
 
