@@ -17,8 +17,9 @@ import {
   presentationLines,
   shareholderJournalLines,
 } from "@/lib/alibaba-shareholder-invoices"
+import { shouldSkipExistingJournals } from "@/lib/post-2025-shop-books"
 
-async function main() {
+export async function main() {
   for (const invoice of ALIBABA_SHAREHOLDER_INVOICES) {
     if (!journalBalances(invoice)) {
       throw new Error(`${invoice.invoiceNumber} does not balance`)
@@ -68,6 +69,10 @@ async function main() {
     })
     if (existing && existing.source !== ALIBABA_SHAREHOLDER_SOURCE) {
       throw new Error(`${invoice.invoiceNumber} already exists from ${existing.source}`)
+    }
+    if (existing && shouldSkipExistingJournals()) {
+      console.log(`Skipping ${invoice.invoiceNumber} (already posted)`)
+      continue
     }
     if (existing) {
       await prisma.journalEntry.delete({ where: { id: existing.id } })

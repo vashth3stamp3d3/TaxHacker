@@ -14,13 +14,14 @@ import {
   dreamPaymentBalances,
   splitGstIncluded,
 } from "@/lib/dream-lease-payments"
+import { shouldSkipExistingJournals } from "@/lib/post-2025-shop-books"
 
 function format(cents: number) {
   const sign = cents < 0 ? "-" : ""
   return `${sign}${(Math.abs(cents) / 100).toFixed(2)}`
 }
 
-async function main() {
+export async function main() {
   for (const payment of DREAM_LEASE_PAYMENTS) {
     if (!dreamPaymentBalances(payment)) throw new Error(`${payment.entryNumber} does not balance`)
     const split = splitGstIncluded(payment.appliedCents)
@@ -62,6 +63,10 @@ async function main() {
     })
     if (existing && existing.source !== DREAM_LEASE_SOURCE) {
       throw new Error(`${payment.entryNumber} already exists from ${existing.source}`)
+    }
+    if (existing && shouldSkipExistingJournals()) {
+      console.log(`Skipping ${payment.entryNumber} (already posted)`)
+      continue
     }
     if (existing) await prisma.journalEntry.delete({ where: { id: existing.id } })
 
