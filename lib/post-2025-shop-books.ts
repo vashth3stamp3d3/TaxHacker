@@ -13,6 +13,7 @@ export const SHOP_BOOK_BATCHES_2025 = [
   { id: "dream", script: "import-dream-lease-payments.ts", entries: 23 },
   { id: "enmax", script: "import-enmax-2025-utilities.ts", entries: 12 },
   { id: "shopify", script: "import-shopify-2025-sales.ts", entries: 1 },
+  { id: "cca", script: "import-2025-depreciation.ts", entries: 1 },
 ] as const
 
 export const SHOP_BOOK_ENTRY_COUNT_2025 = SHOP_BOOK_BATCHES_2025.reduce((sum, batch) => sum + batch.entries, 0)
