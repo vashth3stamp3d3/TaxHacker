@@ -13,6 +13,8 @@
     "lint": "eslint .",
     "email:sync": "tsx \"app/(app)/apps/email/scripts/fetch-emails.ts\"",
     "ledger:import": "tsx scripts/import-formulated-prints-ledger.ts",
+    "ledger:alibaba": "tsx scripts/import-alibaba-shareholder-invoices.ts",
+    "invoices:alibaba": "tsx scripts/generate-alibaba-shareholder-invoices.ts",
     "t2:import-2024": "tsx scripts/import-2024-t2.ts",
     "test": "vitest run",
     "test:watch": "vitest"
