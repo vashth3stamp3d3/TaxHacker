@@ -87,6 +87,7 @@ const STARTER_ACCOUNTS = [
   ["6080", "Professional Fees", "expense", "professional", "debit"],
   ["6090", "Depreciation", "expense", "depreciation", "debit"],
   ["6100", "Meals and Entertainment", "expense", "meals", "debit"],
+  ["6200", "Officer Wages - Jerrold", "expense", "payroll", "debit"],
 ] as const
 
 export const getActiveOrganization = cache(async (userId: string) => {
