@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "email:sync": "tsx \"app/(app)/apps/email/scripts/fetch-emails.ts\"",
     "ledger:import": "tsx scripts/import-formulated-prints-ledger.ts",
+    "ledger:shopify-2025": "tsx scripts/import-shopify-2025-sales.ts",
     "t2:import-2024": "tsx scripts/import-2024-t2.ts",
     "test": "vitest run",
     "test:watch": "vitest"
