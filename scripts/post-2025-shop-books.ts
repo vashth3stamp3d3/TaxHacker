@@ -13,6 +13,9 @@ import { main as postAmazon } from "./import-amazon-shareholder-invoices"
 import { main as postDream } from "./import-dream-lease-payments"
 import { main as postEnmax } from "./import-enmax-2025-utilities"
 import { main as postShopify } from "./import-shopify-2025-sales"
+import { main as postTradingView } from "./import-tradingview-2025"
+import { main as postMacbook } from "./import-macbook-2025"
+import { main as postNeo } from "./import-neo-2025-claims"
 import { main as postDepreciation } from "./import-2025-depreciation"
 
 export async function main() {
@@ -22,6 +25,9 @@ export async function main() {
   await postDream()
   await postEnmax()
   await postShopify()
+  await postTradingView()
+  await postMacbook()
+  await postNeo()
   await postDepreciation()
 }
 

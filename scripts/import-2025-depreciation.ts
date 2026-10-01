@@ -32,13 +32,16 @@ export async function main() {
 
   console.log(`2025 maximum CCA ${formatCad(CCA_2025.totalCcaCents)}`)
   console.log(
-    `Class 8 opening UCC ${formatCad(CCA_2025.class8.openingUccCents)} CCA ${formatCad(CCA_2025.class8.ccaCents)} closing ${formatCad(CCA_2025.class8.closingUccCents)}`
+    `Class 8 opening UCC ${formatCad(CCA_2025.class8.openingUccCents)} additions ${formatCad(CCA_2025.class8.additionsCents)} CCA ${formatCad(CCA_2025.class8.ccaCents)} closing ${formatCad(CCA_2025.class8.closingUccCents)}`
   )
   console.log(
     `Class 12 additions ${formatCad(CCA_2025.class12.additionsCents)} CCA ${formatCad(CCA_2025.class12.ccaCents)} closing ${formatCad(CCA_2025.class12.closingUccCents)}`
   )
+  console.log(
+    `Class 50 additions ${formatCad(CCA_2025.class50.additionsCents)} CCA ${formatCad(CCA_2025.class50.ccaCents)} closing ${formatCad(CCA_2025.class50.closingUccCents)}`
+  )
   console.log(`Class 8 RIIP alternative ${formatCad(CCA_2025.allClass8RiipCents)} (not used)`)
-  for (const item of CCA_2025.class12.items) {
+  for (const item of [...CCA_2025.class8.items, ...CCA_2025.class12.items, ...CCA_2025.class50.items]) {
     console.log(`  ${item.invoiceNumber}  ${formatCad(item.costCents)}  ${item.description}`)
   }
   for (const line of cca2025JournalLines()) {
@@ -137,7 +140,9 @@ export async function main() {
         note: [
           `Class 8 CCA ${formatCad(CCA_2025.class8.ccaCents)}`,
           `Class 12 CCA ${formatCad(CCA_2025.class12.ccaCents)}`,
+          `Class 50 CCA ${formatCad(CCA_2025.class50.ccaCents)}`,
           `Closing class 8 UCC ${formatCad(CCA_2025.class8.closingUccCents)}`,
+          `Closing class 50 UCC ${formatCad(CCA_2025.class50.closingUccCents)}`,
           "Book depreciation equals CCA.",
         ].join(" | "),
         extra: {
@@ -146,7 +151,9 @@ export async function main() {
           totalCcaCents: CCA_2025.totalCcaCents,
           class8CcaCents: CCA_2025.class8.ccaCents,
           class12CcaCents: CCA_2025.class12.ccaCents,
+          class50CcaCents: CCA_2025.class50.ccaCents,
           class8ClosingUccCents: CCA_2025.class8.closingUccCents,
+          class50ClosingUccCents: CCA_2025.class50.closingUccCents,
           allClass8RiipCents: CCA_2025.allClass8RiipCents,
         },
       },

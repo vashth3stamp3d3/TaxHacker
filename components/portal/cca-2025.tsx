@@ -1,12 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { CCA_2025, CCA_2025_YEAR, cca2025AssetRows } from "@/lib/cca-2025"
+import { CCA_2025, CCA_2025_YEAR, CLASS_8_RATE_BPS, cca2025AssetRows } from "@/lib/cca-2025"
 import { formatMoney } from "@/models/accounting"
 
 export function Cca2025Card({ year }: { year: number }) {
   if (year !== CCA_2025_YEAR) return null
   const claim = CCA_2025
   const assets = cca2025AssetRows()
+  const classes = [claim.class8, claim.class12, claim.class50]
+  const openingCca = Math.round((claim.class8.openingUccCents * CLASS_8_RATE_BPS) / 10_000)
 
   return (
     <Card>
@@ -15,9 +17,10 @@ export function Cca2025Card({ year }: { year: number }) {
         <CardDescription>
           The shop machine from the filed 2024 T2 is in this claim. Original cost{" "}
           {formatMoney(claim.priorEquipmentCostCents)}, 2024 CCA already taken {formatMoney(claim.priorCcaCents)},
-          remaining UCC {formatMoney(claim.class8.openingUccCents)} × 20% = {formatMoney(claim.class8.ccaCents)}. First-year
+          remaining UCC {formatMoney(claim.class8.openingUccCents)} × 20% = {formatMoney(openingCca)}. First-year
           accelerated CCA does not apply again to last year’s machine. 2025 Amazon items under $500 take class 12 at
-          100%. Total book depreciation {formatMoney(claim.bookDepreciationCents)}.
+          100%. The Bambu Lab printer takes class 8 RIIP 30%. The MacBook Pro and Memory Express parts take class 50
+          first-year 82.5%. Total book depreciation {formatMoney(claim.bookDepreciationCents)}.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -32,7 +35,7 @@ export function Cca2025Card({ year }: { year: number }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {[claim.class8, claim.class12].map((row) => (
+            {classes.map((row) => (
               <TableRow key={row.classNumber}>
                 <TableCell>Class {row.classNumber}</TableCell>
                 <TableCell>{formatMoney(row.openingUccCents)}</TableCell>
@@ -44,7 +47,9 @@ export function Cca2025Card({ year }: { year: number }) {
             <TableRow>
               <TableCell className="font-medium">Total</TableCell>
               <TableCell>{formatMoney(claim.class8.openingUccCents)}</TableCell>
-              <TableCell>{formatMoney(claim.class12.additionsCents + claim.class8.additionsCents)}</TableCell>
+              <TableCell>
+                {formatMoney(claim.class8.additionsCents + claim.class12.additionsCents + claim.class50.additionsCents)}
+              </TableCell>
               <TableCell className="font-medium">{formatMoney(claim.totalCcaCents)}</TableCell>
               <TableCell className="text-right font-medium">{formatMoney(claim.netBookValueCents)}</TableCell>
             </TableRow>

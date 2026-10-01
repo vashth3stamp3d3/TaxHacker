@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
+import { CCA_2025 } from "@/lib/cca-2025"
 import { centsToDollarInput, formatCents, formatUtcDate } from "@/lib/tax/t2-worksheet"
 import { WORKING_YEARS, getWorkingYear } from "@/lib/working-year"
 import { formatMoney } from "@/models/accounting"
@@ -76,7 +77,7 @@ export default async function T2WorksheetPage({
           {year === 2024
             ? "Schedule 125, Schedule 100, and Schedule 8 from the 2024 T2 are on the books. Book amortization $4,183 was added back and class 8 CCA $4,183 was deducted, so taxable income is $11,045. Filed tax is Part I $993 and Alberta $221."
             : year === 2025
-              ? "2025 book depreciation is the maximum CCA $7,346.37. That includes the shop machine already on the 2024 T2: remaining class 8 UCC $33,624.00 × 20% = $6,724.80, plus class 12 100% of Amazon equipment under $500 ($621.57). Schedule 1 adds the total back and deducts the same CCA, so depreciation does not change taxable income versus the books."
+              ? `2025 book depreciation is the maximum CCA ${formatMoney(CCA_2025.totalCcaCents)}. That includes the shop machine already on the 2024 T2 (remaining class 8 UCC ${formatMoney(CCA_2025.class8.openingUccCents)} × 20%), class 8 RIIP 30% on the Bambu Lab printer, class 12 100% of Amazon equipment under $500 (${formatMoney(CCA_2025.class12.additionsCents)}), and class 50 first-year 82.5% on the MacBook Pro and Memory Express parts (${formatMoney(CCA_2025.class50.additionsCents)}). Schedule 1 adds the total back and deducts the same CCA, so depreciation does not change taxable income versus the books.`
               : worksheet.disclaimer}
         </p>
       </div>
