@@ -7,6 +7,7 @@ import {
   CLASS_12_COST_LIMIT_CENTS,
   allClass8RiipCcaCents,
   assertCca2025Math,
+  cca2025AssetRows,
   cca2025Balances,
   cca2025JournalLines,
   cca2025T2Adjustments,
@@ -31,6 +32,20 @@ describe("2025 maximum CCA", () => {
     expect(CCA_2025.class8.openingUccCents).toBe(3_362_400)
     expect(CCA_2025.class8.ccaCents).toBe(672_480)
     expect(CCA_2025.class8.closingUccCents).toBe(2_689_920)
+    expect(CCA_2025.priorEquipmentCostCents).toBe(3_780_700)
+    expect(CCA_2025.priorCcaCents).toBe(418_300)
+  })
+
+  it("lists the 2024 shop machine before the 2025 Amazon tools", () => {
+    const rows = cca2025AssetRows()
+    expect(rows[0]).toMatchObject({
+      source: "T2-2024",
+      classNumber: 8,
+      basisCents: 3_362_400,
+      ccaCents: 672_480,
+    })
+    expect(rows.map((row) => row.source)).toEqual(["T2-2024", "FP-0049", "FP-0050", "FP-0053", "FP-0054"])
+    expect(rows.reduce((sum, row) => sum + row.ccaCents, 0)).toBe(734_637)
   })
 
   it("uses the class 12 path because it is larger than class 8 RIIP", () => {

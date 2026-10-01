@@ -41,10 +41,21 @@ export type Cca2025Claim = {
   class12: CcaClassLine
   totalCcaCents: number
   bookDepreciationCents: number
+  priorEquipmentCostCents: number
+  priorCcaCents: number
   equipmentCostCents: number
   accumDepCents: number
   netBookValueCents: number
   allClass8RiipCents: number
+}
+
+export type CcaAssetRow = {
+  source: string
+  description: string
+  classNumber: 8 | 12
+  basisCents: number
+  basisLabel: "remaining UCC" | "cost"
+  ccaCents: number
 }
 
 export type CcaJournalLine = {
@@ -134,6 +145,8 @@ export function computeCca2025(): Cca2025Claim {
     },
     totalCcaCents: totalCca,
     bookDepreciationCents: totalCca,
+    priorEquipmentCostCents: T2_2024_SCHEDULE_100.equipment,
+    priorCcaCents: T2_2024_TAX.cca,
     equipmentCostCents: equipmentCost,
     accumDepCents: accumDep,
     netBookValueCents: equipmentCost - accumDep,
@@ -142,6 +155,28 @@ export function computeCca2025(): Cca2025Claim {
 }
 
 export const CCA_2025 = computeCca2025()
+
+export function cca2025AssetRows(): CcaAssetRow[] {
+  const claim = CCA_2025
+  return [
+    {
+      source: "T2-2024",
+      description: "Shop machinery and equipment already on the filed 2024 T2",
+      classNumber: 8,
+      basisCents: claim.class8.openingUccCents,
+      basisLabel: "remaining UCC",
+      ccaCents: claim.class8.ccaCents,
+    },
+    ...claim.class12.items.map((item) => ({
+      source: item.invoiceNumber,
+      description: item.description,
+      classNumber: 12 as const,
+      basisCents: item.costCents,
+      basisLabel: "cost" as const,
+      ccaCents: item.costCents,
+    })),
+  ]
+}
 
 export function assertCca2025Math() {
   const claim = computeCca2025()
@@ -189,7 +224,7 @@ export function cca2025JournalLines(): CcaJournalLine[] {
       accountName: "Depreciation",
       debitCents: claim.bookDepreciationCents,
       creditCents: 0,
-      memo: "2025 maximum CCA — class 8 20% of opening UCC plus class 12 100% of equipment under $500",
+      memo: "2025 maximum CCA — 20% of the 2024 shop machine class 8 UCC plus class 12 100% of equipment under $500",
     },
     {
       accountCode: "1690",
@@ -217,7 +252,7 @@ export function cca2025T2Adjustments(): T2CcaAdjustment[] {
   const claim = CCA_2025
   const note = [
     `Maximum 2025 CCA ${formatCad(claim.totalCcaCents)}.`,
-    `Class 8 20% of opening UCC ${formatCad(claim.class8.openingUccCents)} = ${formatCad(claim.class8.ccaCents)}.`,
+    `Shop machine from the 2024 T2: cost ${formatCad(claim.priorEquipmentCostCents)}, 2024 CCA already claimed ${formatCad(claim.priorCcaCents)}, remaining UCC ${formatCad(claim.class8.openingUccCents)} × 20% = ${formatCad(claim.class8.ccaCents)}.`,
     `Class 12 100% of Amazon equipment under $500 ${formatCad(claim.class12.additionsCents)} = ${formatCad(claim.class12.ccaCents)}.`,
     `Closing class 8 UCC ${formatCad(claim.class8.closingUccCents)}. Class 12 UCC nil.`,
     "Book depreciation equals CCA, same as the filed 2024 T2.",

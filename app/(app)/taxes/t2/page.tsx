@@ -76,7 +76,7 @@ export default async function T2WorksheetPage({
           {year === 2024
             ? "Schedule 125, Schedule 100, and Schedule 8 from the 2024 T2 are on the books. Book amortization $4,183 was added back and class 8 CCA $4,183 was deducted, so taxable income is $11,045. Filed tax is Part I $993 and Alberta $221."
             : year === 2025
-              ? "2025 book depreciation is the maximum CCA $7,346.37: class 8 20% of opening UCC $33,624.00 plus class 12 100% of Amazon equipment under $500. Schedule 1 adds that amount back and deducts the same CCA, so depreciation does not change taxable income versus the books."
+              ? "2025 book depreciation is the maximum CCA $7,346.37. That includes the shop machine already on the 2024 T2: remaining class 8 UCC $33,624.00 × 20% = $6,724.80, plus class 12 100% of Amazon equipment under $500 ($621.57). Schedule 1 adds the total back and deducts the same CCA, so depreciation does not change taxable income versus the books."
               : worksheet.disclaimer}
         </p>
       </div>

@@ -1,20 +1,23 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { CCA_2025, CCA_2025_YEAR, formatCad } from "@/lib/cca-2025"
+import { CCA_2025, CCA_2025_YEAR, cca2025AssetRows, formatCad } from "@/lib/cca-2025"
 import { formatMoney } from "@/models/accounting"
 
 export function Cca2025Card({ year }: { year: number }) {
   if (year !== CCA_2025_YEAR) return null
   const claim = CCA_2025
+  const assets = cca2025AssetRows()
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>2025 depreciation · maximum CCA</CardTitle>
         <CardDescription>
-          Book depreciation {formatMoney(claim.bookDepreciationCents)} equals the largest 2025 CCA claim. Class 12 writes
-          off each Amazon equipment item under $500 in the year of purchase. Opening class 8 from the filed 2024 T2 stays
-          at 20%. Leaving those additions in class 8 with RIIP would only be {formatMoney(claim.allClass8RiipCents)}.
+          The shop machine from the filed 2024 T2 is in this claim. Original cost{" "}
+          {formatMoney(claim.priorEquipmentCostCents)}, 2024 CCA already taken {formatMoney(claim.priorCcaCents)},
+          remaining UCC {formatMoney(claim.class8.openingUccCents)} × 20% = {formatMoney(claim.class8.ccaCents)}. First-year
+          accelerated CCA does not apply again to last year’s machine. 2025 Amazon items under $500 take class 12 at
+          100%. Total book depreciation {formatMoney(claim.bookDepreciationCents)}.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -50,17 +53,24 @@ export function Cca2025Card({ year }: { year: number }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Invoice</TableHead>
-              <TableHead>Item</TableHead>
-              <TableHead className="text-right">Cost</TableHead>
+              <TableHead>Source</TableHead>
+              <TableHead>Asset</TableHead>
+              <TableHead>Basis</TableHead>
+              <TableHead className="text-right">2025 CCA</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {claim.class12.items.map((item) => (
-              <TableRow key={item.invoiceNumber}>
-                <TableCell className="font-mono">{item.invoiceNumber}</TableCell>
-                <TableCell>{item.description}</TableCell>
-                <TableCell className="text-right">{formatCad(item.costCents)}</TableCell>
+            {assets.map((item) => (
+              <TableRow key={item.source}>
+                <TableCell className="font-mono">{item.source}</TableCell>
+                <TableCell>
+                  {item.description}
+                  <span className="block text-muted-foreground">Class {item.classNumber}</span>
+                </TableCell>
+                <TableCell>
+                  {formatCad(item.basisCents)} {item.basisLabel}
+                </TableCell>
+                <TableCell className="text-right">{formatCad(item.ccaCents)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
