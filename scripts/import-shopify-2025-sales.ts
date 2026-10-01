@@ -1,9 +1,10 @@
 /**
  * Post the 2025 Shopify Analytics sales summary.
  *
- * Credits print sales and shipping income, debits discounts and sales reversals,
- * and credits GST collected. Operating revenue for net income is net sales plus
- * shipping. The cash side is Undeposited Funds until Shopify payouts are matched.
+ * Credits print sales, debits discounts and sales reversals, and credits GST
+ * collected. Shopify shipping is 5040 Shipping Cost, not 4300 income. Operating
+ * revenue for net income is net print sales. The cash side is Undeposited Funds
+ * until Shopify payouts are matched.
  *
  * Usage:
  *   npx tsx scripts/import-shopify-2025-sales.ts --dry-run
@@ -33,7 +34,7 @@ export async function main() {
   console.log(`Discounts ${format(SHOPIFY_2025_SALES.discountsCents)}`)
   console.log(`Sales reversals ${format(SHOPIFY_2025_SALES.salesReversalsCents)}`)
   console.log(`Net sales ${format(SHOPIFY_2025_SALES.netSalesCents)}`)
-  console.log(`Shipping income ${format(SHOPIFY_2025_SALES.shippingChargesCents)}`)
+  console.log(`Shipping expense ${format(SHOPIFY_2025_SALES.shippingChargesCents)}`)
   console.log(`GST collected ${format(SHOPIFY_2025_SALES.taxesCents)}`)
   console.log(`Total sales ${format(SHOPIFY_2025_SALES.totalSalesCents)}`)
   console.log(`Operating revenue for net income ${format(shopify2025OperatingRevenueCents())}`)
@@ -56,7 +57,7 @@ export async function main() {
   await seedOrganizationDefaults(identified.id)
   const accounts = await prisma.ledgerAccount.findMany({ where: { organizationId: identified.id } })
   const accountIds = new Map(accounts.map((account) => [account.code, account.id]))
-  for (const code of ["1020", "2100", "4000", "4300", "4900"]) {
+  for (const code of ["1020", "2100", "2300", "4000", "4900", "5040"]) {
     if (!accountIds.has(code)) throw new Error(`Chart of accounts is missing ${code}`)
   }
   const gstCollected = await prisma.taxCode.findUnique({
@@ -95,7 +96,7 @@ export async function main() {
       organizationId: identified.id,
       entryNumber: SHOPIFY_2025_ENTRY,
       source: SHOPIFY_2025_SOURCE,
-      description: "Shopify 2025 sales — print sales, discounts, reversals, shipping, and GST",
+      description: "Shopify 2025 sales — print sales, discounts, reversals, shipping expense, and GST",
       postedAt: SHOPIFY_2025_POSTED_AT,
       status: "posted",
       currencyCode: "CAD",
@@ -123,7 +124,7 @@ export async function main() {
       userId: owner.userId,
       organizationId: identified.id,
       name: `${SHOPIFY_2025_ENTRY} Shopify sales`,
-      description: "Net sales, shipping income, and GST collected for 2025",
+      description: "Net print sales, shipping expense, and GST collected for 2025",
       merchant: "Shopify",
       total: SHOPIFY_2025_SALES.totalSalesCents,
       currencyCode: "CAD",
@@ -139,7 +140,7 @@ export async function main() {
         `Discounts ${format(SHOPIFY_2025_SALES.discountsCents)}`,
         `Sales reversals ${format(SHOPIFY_2025_SALES.salesReversalsCents)}`,
         `Net sales ${format(SHOPIFY_2025_SALES.netSalesCents)}`,
-        `Shipping ${format(SHOPIFY_2025_SALES.shippingChargesCents)}`,
+        `Shipping expense ${format(SHOPIFY_2025_SALES.shippingChargesCents)}`,
         `GST ${format(SHOPIFY_2025_SALES.taxesCents)}`,
         `Operating revenue ${format(shopify2025OperatingRevenueCents())}`,
         `${SHOPIFY_2025_SALES.orders} orders, ${SHOPIFY_2025_SALES.ordersFulfilled} fulfilled`,

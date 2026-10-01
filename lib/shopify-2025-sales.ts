@@ -2,9 +2,10 @@
  * Shopify Analytics for Formulated Prints, 1 Jan 2025–31 Dec 2025, CAD.
  * Source: Shopify admin total-sales breakdown (compared on screen to 2024; only 2025 is booked).
  *
- * Net income uses net sales plus shipping. GST is a liability, not income.
- * Discounts and sales reversals reduce print sales. The debit sits in
- * Undeposited Funds because this export is not a bank payout report.
+ * Shipping charged on Shopify is shop freight, account 5040, not shipping income.
+ * Net income uses net print sales; GST is a liability, not income. Discounts and
+ * sales reversals reduce print sales. Undeposited Funds holds the sales cash
+ * until Shopify payouts are matched; shipping is payable separately.
  */
 
 export const SHOPIFY_2025_SOURCE = "shopify-analytics-2025"
@@ -40,15 +41,19 @@ export type ShopifyJournalLine = {
   taxCode?: string
 }
 
+export function shopify2025SalesCashCents() {
+  return SHOPIFY_2025_SALES.totalSalesCents - SHOPIFY_2025_SALES.shippingChargesCents
+}
+
 export function shopify2025JournalLines(): ShopifyJournalLine[] {
   const sales = SHOPIFY_2025_SALES
   return [
     {
       accountCode: "1020",
       accountName: "Undeposited Funds",
-      debitCents: sales.totalSalesCents,
+      debitCents: shopify2025SalesCashCents(),
       creditCents: 0,
-      memo: "Shopify 2025 total sales, pending payout match",
+      memo: "Shopify 2025 sales cash excluding shipping",
     },
     {
       accountCode: "4000",
@@ -72,11 +77,18 @@ export function shopify2025JournalLines(): ShopifyJournalLine[] {
       memo: "Shopify 2025 sales reversals",
     },
     {
-      accountCode: "4300",
-      accountName: "Shipping Income",
+      accountCode: "5040",
+      accountName: "Shipping Cost",
+      debitCents: sales.shippingChargesCents,
+      creditCents: 0,
+      memo: "Shopify 2025 shipping (expense, not income)",
+    },
+    {
+      accountCode: "2300",
+      accountName: "Credit Card Payable",
       debitCents: 0,
       creditCents: sales.shippingChargesCents,
-      memo: "Shopify 2025 shipping charges",
+      memo: "Shopify 2025 shipping billed",
     },
     {
       accountCode: "2100",
@@ -90,8 +102,7 @@ export function shopify2025JournalLines(): ShopifyJournalLine[] {
 }
 
 export function shopify2025OperatingRevenueCents() {
-  const sales = SHOPIFY_2025_SALES
-  return sales.netSalesCents + sales.shippingChargesCents + sales.returnFeesCents
+  return SHOPIFY_2025_SALES.netSalesCents + SHOPIFY_2025_SALES.returnFeesCents
 }
 
 export function shopify2025Balances() {
@@ -99,12 +110,16 @@ export function shopify2025Balances() {
   const debit = lines.reduce((sum, line) => sum + line.debitCents, 0)
   const credit = lines.reduce((sum, line) => sum + line.creditCents, 0)
   const revenue = lines
-    .filter((line) => line.accountCode === "4000" || line.accountCode === "4300" || line.accountCode === "4900")
+    .filter((line) => line.accountCode === "4000" || line.accountCode === "4900")
     .reduce((sum, line) => sum + line.creditCents - line.debitCents, 0)
+  const shippingExpense = lines
+    .filter((line) => line.accountCode === "5040")
+    .reduce((sum, line) => sum + line.debitCents - line.creditCents, 0)
   return {
     debit,
     credit,
-    balanced: debit === credit && debit === SHOPIFY_2025_SALES.totalSalesCents + SHOPIFY_2025_SALES.discountsCents + SHOPIFY_2025_SALES.salesReversalsCents,
+    balanced: debit === credit,
     revenue,
+    shippingExpense,
   }
 }
