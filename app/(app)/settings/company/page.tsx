@@ -23,12 +23,12 @@ export default async function CompanySettingsPage() {
         title="Company ERP"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
-        description="Alberta GST and owner identity used across books, invoices, and the tax advisor"
+        description="Alberta GST and Canadian corporation identity used across books, invoices, and the tax advisor"
       />
       <Card>
         <CardHeader>
-          <CardTitle>Canadian company setup</CardTitle>
-          <CardDescription>Alberta GST and ERP defaults used across accounting, invoices, and reports.</CardDescription>
+          <CardTitle>Canadian corporation</CardTitle>
+          <CardDescription>Formulated Prints is a Canadian corporation. Alberta GST and T2 defaults are used across accounting, invoices, and reports.</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={updateCompanyAction} className="grid gap-4">
@@ -98,7 +98,7 @@ export default async function CompanySettingsPage() {
               </div>
             </div>
             <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-              Province is locked to Alberta and base currency is CAD for the first Canadian ERP version.
+              Entity type is locked to Canadian corporation. Province is Alberta and base currency is CAD.
             </div>
             <Button type="submit">Save Company Setup</Button>
           </form>
@@ -125,6 +125,7 @@ export default async function CompanySettingsPage() {
                 defaultValue={member.role}
                 className="rounded-md border bg-background px-3 py-2 text-sm"
               >
+                <option value="superuser">Superuser</option>
                 <option value="owner">Owner</option>
                 <option value="staff">Staff</option>
                 <option value="accountant">Accountant</option>

@@ -36,7 +36,7 @@ export async function saveFileAsTransactionAction(
   formData: FormData
 ): Promise<ActionState<Transaction>> {
   try {
-    const { user, organization } = await requirePortalContext("inbox_review")
+    const { user, organization, postedAt } = await requirePortalContext("inbox_review")
     const validatedForm = transactionFormSchema.safeParse(Object.fromEntries(formData.entries()))
 
     if (!validatedForm.success) {
@@ -97,6 +97,7 @@ export async function saveFileAsTransactionAction(
           description: transactionData.description || transactionData.name || merchant,
           taxableAmount: amount,
           sourceFileId: file.id,
+          postedAt: transactionData.issuedAt ? new Date(transactionData.issuedAt) : postedAt,
         })
         vendorBillId = bill.id
       }
@@ -112,6 +113,7 @@ export async function saveFileAsTransactionAction(
           description: transactionData.description || transactionData.name || merchant,
           taxableAmount: amount,
           sourceFileId: file.id,
+          postedAt: transactionData.issuedAt ? new Date(transactionData.issuedAt) : postedAt,
         })
         customerInvoiceId = invoice.id
       }
@@ -139,6 +141,7 @@ export async function saveFileAsTransactionAction(
           unitCost: amount,
           createdById: user.id,
           sourceFileId: file.id,
+          postedAt: transactionData.issuedAt ? new Date(transactionData.issuedAt) : postedAt,
         })
         goodsReceiptId = received.receipt.id
       }
@@ -151,7 +154,7 @@ export async function saveFileAsTransactionAction(
           transactionId: transaction.id,
           paymentMethodId: transactionData.paymentMethodId,
           description: transactionData.description || transactionData.name || "Analyzed receipt",
-          postedAt: transactionData.issuedAt ? new Date(transactionData.issuedAt) : new Date(),
+          postedAt: transactionData.issuedAt ? new Date(transactionData.issuedAt) : postedAt,
           accountingSuggestion,
           fallbackAmount: amount,
         })

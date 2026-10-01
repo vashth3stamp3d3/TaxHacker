@@ -18,7 +18,7 @@ export async function createInventoryItemAction(formData: FormData) {
 }
 
 export async function receiveInventoryAction(formData: FormData) {
-  const { user, organization } = await requirePortalContext("shop_write")
+  const { user, organization, postedAt } = await requirePortalContext("shop_write")
   await receiveInventory({
     organizationId: organization.id,
     createdById: user.id,
@@ -27,13 +27,14 @@ export async function receiveInventoryAction(formData: FormData) {
     quantity: Math.round(Number(formData.get("quantity") || 0)),
     unitCost: Math.round(Number(formData.get("unitCost") || 0) * 100),
     postToGrni: true,
+    postedAt,
   })
   revalidatePath("/inventory")
   revalidatePath("/reports")
 }
 
 export async function consumeInventoryAction(formData: FormData) {
-  const { user, organization } = await requirePortalContext("inventory_consume")
+  const { user, organization, postedAt } = await requirePortalContext("inventory_consume")
   await consumeInventory({
     organizationId: organization.id,
     createdById: user.id,
@@ -41,6 +42,7 @@ export async function consumeInventoryAction(formData: FormData) {
     warehouseId: String(formData.get("warehouseId") || ""),
     quantity: Math.round(Number(formData.get("quantity") || 0)),
     unitCost: Math.round(Number(formData.get("unitCost") || 0) * 100),
+    postedAt,
   })
   revalidatePath("/inventory")
   revalidatePath("/reports")

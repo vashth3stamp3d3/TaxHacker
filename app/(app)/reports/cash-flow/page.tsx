@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import { getCashFlowStatement } from "@/models/accounting"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { AccountBalanceTable, StatementCard } from "../_components"
@@ -11,7 +12,8 @@ export const metadata = {
 export default async function CashFlowPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const statement = await getCashFlowStatement(organization.id)
+  const year = await getWorkingYear()
+  const statement = await getCashFlowStatement(organization.id, year.year)
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">

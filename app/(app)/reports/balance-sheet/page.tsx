@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import { getBalanceSheet } from "@/models/accounting"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { AccountBalanceTable, StatementCard } from "../_components"
@@ -11,13 +12,17 @@ export const metadata = {
 export default async function BalanceSheetPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const statement = await getBalanceSheet(organization.id)
+  const year = await getWorkingYear()
+  const statement = await getBalanceSheet(organization.id, year.year)
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Balance Sheet</h1>
-        <p className="text-muted-foreground">Assets, liabilities, and equity from posted ledger lines.</p>
+        <p className="text-muted-foreground">
+          Assets, liabilities, and equity as of {year.year}-12-31, including earlier posted activity
+          {year.year === 2024 ? ". 2024 ending equals 2025 opening." : "."}
+        </p>
       </div>
       <StatementCard
         title="Summary"

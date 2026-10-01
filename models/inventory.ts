@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { cogsAccountCodeForType, inventoryAccountCodeForType, weightedAverageCost } from "@/lib/tax/gst"
+import { prismaDateInYear } from "@/lib/working-year"
 import { cache } from "react"
 import { createBalancedJournalEntry, getNextNumber } from "./accounting"
 
@@ -15,9 +16,9 @@ export const getStockBalances = cache(async (organizationId: string) => {
   return prisma.stockBalance.findMany({ where: { organizationId }, orderBy: { updatedAt: "desc" } })
 })
 
-export const getInventoryMovements = cache(async (organizationId: string) => {
+export const getInventoryMovements = cache(async (organizationId: string, year?: number) => {
   return prisma.inventoryMovement.findMany({
-    where: { organizationId },
+    where: { organizationId, occurredAt: prismaDateInYear(year) },
     orderBy: { occurredAt: "desc" },
     take: 100,
   })
@@ -27,12 +28,20 @@ export const getReorderRules = cache(async (organizationId: string) => {
   return prisma.reorderRule.findMany({ where: { organizationId, isActive: true } })
 })
 
-export const getPurchaseOrders = cache(async (organizationId: string) => {
-  return prisma.purchaseOrder.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 100 })
+export const getPurchaseOrders = cache(async (organizationId: string, year?: number) => {
+  return prisma.purchaseOrder.findMany({
+    where: { organizationId, createdAt: prismaDateInYear(year) },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  })
 })
 
-export const getGoodsReceipts = cache(async (organizationId: string) => {
-  return prisma.goodsReceipt.findMany({ where: { organizationId }, orderBy: { receivedAt: "desc" }, take: 100 })
+export const getGoodsReceipts = cache(async (organizationId: string, year?: number) => {
+  return prisma.goodsReceipt.findMany({
+    where: { organizationId, receivedAt: prismaDateInYear(year) },
+    orderBy: { receivedAt: "desc" },
+    take: 100,
+  })
 })
 
 export async function createInventoryItem(
@@ -82,6 +91,7 @@ export async function receiveInventory({
   sourceType = "inventory_receipt",
   sourceId,
   postToGrni = true,
+  postedAt,
 }: {
   organizationId: string
   itemId: string
@@ -92,6 +102,7 @@ export async function receiveInventory({
   sourceType?: string
   sourceId?: string
   postToGrni?: boolean
+  postedAt?: Date
 }) {
   const totalCost = quantity * unitCost
   const existing = await prisma.stockBalance.findUnique({
@@ -102,6 +113,7 @@ export async function receiveInventory({
   const creditAccount = postToGrni
     ? await getAccount(organizationId, "2010").catch(() => getAccount(organizationId, "2000"))
     : await getAccount(organizationId, "2000")
+  const occurredAt = postedAt || new Date()
 
   const movement = await prisma.inventoryMovement.create({
     data: {
@@ -114,6 +126,7 @@ export async function receiveInventory({
       sourceType,
       sourceId,
       memo: "Inventory receipt",
+      occurredAt,
     },
   })
 
@@ -131,7 +144,7 @@ export async function receiveInventory({
     organizationId,
     createdById,
     description: "Inventory receipt",
-    postedAt: new Date(),
+    postedAt: occurredAt,
     source: sourceType,
     sourceId: sourceId || movement.id,
     lines: [
@@ -153,6 +166,7 @@ export async function consumeInventory({
   toWip = false,
   sourceType = "inventory_consumption",
   sourceId,
+  postedAt,
 }: {
   organizationId: string
   itemId: string
@@ -163,6 +177,7 @@ export async function consumeInventory({
   toWip?: boolean
   sourceType?: string
   sourceId?: string
+  postedAt?: Date
 }) {
   const balance = await prisma.stockBalance.findUnique({
     where: { organizationId_itemId_warehouseId: { organizationId, itemId, warehouseId } },
@@ -171,6 +186,7 @@ export async function consumeInventory({
   const totalCost = quantity * cost
   const debitAccount = toWip ? await getAccount(organizationId, "1300") : await cogsAccountForItem(organizationId, itemId)
   const inventoryAccount = await inventoryAccountForItem(organizationId, itemId)
+  const occurredAt = postedAt || new Date()
 
   const movement = await prisma.inventoryMovement.create({
     data: {
@@ -183,6 +199,7 @@ export async function consumeInventory({
       sourceType,
       sourceId,
       memo: toWip ? "Issued to WIP" : "Inventory consumed",
+      occurredAt,
     },
   })
 
@@ -196,7 +213,7 @@ export async function consumeInventory({
     organizationId,
     createdById,
     description: toWip ? "WIP material issue" : "Inventory consumption",
-    postedAt: new Date(),
+    postedAt: occurredAt,
     source: sourceType,
     sourceId: sourceId || movement.id,
     lines: [
@@ -255,12 +272,14 @@ export async function receivePurchaseOrder({
   warehouseId,
   createdById,
   sourceFileId,
+  postedAt,
 }: {
   organizationId: string
   purchaseOrderId: string
   warehouseId: string
   createdById?: string
   sourceFileId?: string
+  postedAt?: Date
 }) {
   if (sourceFileId) {
     const existing = await prisma.goodsReceipt.findFirst({ where: { organizationId, sourceFileId } })
@@ -278,6 +297,7 @@ export async function receivePurchaseOrder({
       vendorId: order.vendorId,
       sourceFileId,
       status: "received",
+      receivedAt: postedAt || new Date(),
     },
   })
 
@@ -294,6 +314,7 @@ export async function receivePurchaseOrder({
       sourceType: "goods_receipt",
       sourceId: receipt.id,
       postToGrni: true,
+      postedAt,
     })
     lastJournalId = result.journalEntry.id
   }
@@ -314,6 +335,7 @@ export async function receiveInboxInventory({
   createdById,
   sourceFileId,
   vendorId,
+  postedAt,
 }: {
   organizationId: string
   itemId: string
@@ -323,6 +345,7 @@ export async function receiveInboxInventory({
   createdById?: string
   sourceFileId?: string
   vendorId?: string
+  postedAt?: Date
 }) {
   if (sourceFileId) {
     const existing = await prisma.goodsReceipt.findFirst({ where: { organizationId, sourceFileId } })
@@ -336,6 +359,7 @@ export async function receiveInboxInventory({
       vendorId,
       sourceFileId,
       status: "received",
+      receivedAt: postedAt || new Date(),
     },
   })
 
@@ -349,6 +373,7 @@ export async function receiveInboxInventory({
     sourceType: "goods_receipt",
     sourceId: receipt.id,
     postToGrni: true,
+    postedAt,
   })
 
   await prisma.goodsReceipt.update({

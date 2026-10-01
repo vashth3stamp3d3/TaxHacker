@@ -1,9 +1,12 @@
 import { closePeriodAction } from "@/app/(app)/accounting/actions"
-import { Button } from "@/components/ui/button"
+import { FiledT2GifiCard } from "@/components/portal/filed-t2-gifi"
+import { LedgerSnapshotsCard } from "@/components/portal/ledger-snapshots"
 import { PortalPageHeader } from "@/components/portal/page-header"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import {
   formatMoney,
   getAccountingPeriods,
@@ -12,7 +15,7 @@ import {
   getIncomeStatement,
   getTrialBalance,
 } from "@/models/accounting"
-import { ensureActiveOrganization } from "@/models/organizations"
+import { ensureActiveOrganization, getLedgerBalanceSnapshots } from "@/models/organizations"
 import Link from "next/link"
 
 export const metadata = {
@@ -22,12 +25,14 @@ export const metadata = {
 export default async function AccountingPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const [trialBalance, incomeStatement, gstSummary, financialBreakdown, periods] = await Promise.all([
-    getTrialBalance(organization.id),
-    getIncomeStatement(organization.id),
-    getGstSummary(organization.id),
-    getFinancialBreakdown(organization.id, user.id),
-    getAccountingPeriods(organization.id),
+  const year = await getWorkingYear()
+  const [trialBalance, incomeStatement, gstSummary, financialBreakdown, periods, snapshots] = await Promise.all([
+    getTrialBalance(organization.id, year.year),
+    getIncomeStatement(organization.id, year.year),
+    getGstSummary(organization.id, { from: year.startsAt, to: year.endsAt }),
+    getFinancialBreakdown(organization.id, user.id, year.year),
+    getAccountingPeriods(organization.id, year.year),
+    getLedgerBalanceSnapshots(organization.id, year.year),
   ])
   const activeAccounts = trialBalance.filter((account) => account.balance !== 0).length
 
@@ -37,14 +42,22 @@ export default async function AccountingPage() {
         title="Accounting"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
-        description="Canadian double-entry books with Alberta GST defaults"
+        workingYear={year.year}
+        description={
+          year.year === 2024
+            ? "2024 is the filed T2. Close 2025 yourself when that return is done; 2026 stays open."
+            : "Canadian corporation books. Close 2025 yourself when the return is done; 2026 stays open."
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>Net Income</CardTitle>
-            <CardDescription>Revenue minus COGS and expenses</CardDescription>
+            <CardDescription>
+              Current year net income is {year.year} activity only. Trial balance and balance sheet include earlier posted
+              amounts through year end.
+            </CardDescription>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">{formatMoney(incomeStatement.netIncome)}</CardContent>
         </Card>
@@ -63,6 +76,9 @@ export default async function AccountingPage() {
           <CardContent className="text-2xl font-semibold">{activeAccounts}</CardContent>
         </Card>
       </div>
+
+      <FiledT2GifiCard year={year.year} />
+      <LedgerSnapshotsCard snapshots={snapshots} year={year.year} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

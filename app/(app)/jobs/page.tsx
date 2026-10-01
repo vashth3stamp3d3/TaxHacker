@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import { formatMoney } from "@/models/accounting"
 import { getCustomers } from "@/models/commerce"
 import { getItems } from "@/models/inventory"
@@ -19,13 +20,14 @@ export const metadata = {
 export default async function JobsPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
+  const year = await getWorkingYear()
   const [customers, salesOrders, jobs, items, materials, labor] = await Promise.all([
     getCustomers(organization.id),
-    getSalesOrders(organization.id),
-    getPrintJobs(organization.id),
+    getSalesOrders(organization.id, year.year),
+    getPrintJobs(organization.id, year.year),
     getItems(organization.id),
-    getJobMaterials(organization.id),
-    getJobLabor(organization.id),
+    getJobMaterials(organization.id, undefined, year.year),
+    getJobLabor(organization.id, undefined, year.year),
   ])
 
   return (
@@ -34,6 +36,7 @@ export default async function JobsPage() {
         title="Print jobs"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
+        workingYear={year.year}
         description="Materials consume inventory into WIP; complete recognizes COGS"
       />
 

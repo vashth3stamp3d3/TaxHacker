@@ -1,4 +1,4 @@
-export const PORTAL_ROLES = ["owner", "staff", "accountant"] as const
+export const PORTAL_ROLES = ["superuser", "owner", "staff", "accountant"] as const
 export type PortalRole = (typeof PORTAL_ROLES)[number]
 
 export const PORTAL_ACTIONS = [
@@ -15,28 +15,43 @@ export const PORTAL_ACTIONS = [
 export type PortalAction = (typeof PORTAL_ACTIONS)[number]
 
 const ACTION_ROLES: Record<PortalAction, PortalRole[]> = {
-  inbox_review: ["owner", "staff", "accountant"],
-  shop_write: ["owner", "staff"],
-  inventory_consume: ["owner", "staff"],
-  books_write: ["owner", "accountant"],
-  period_close: ["owner", "accountant"],
-  gst_remittance: ["owner", "accountant"],
-  backups: ["owner"],
-  company_settings: ["owner"],
-  members: ["owner"],
+  inbox_review: ["superuser", "owner", "staff", "accountant"],
+  shop_write: ["superuser", "owner", "staff"],
+  inventory_consume: ["superuser", "owner", "staff"],
+  books_write: ["superuser", "owner", "accountant"],
+  period_close: ["superuser", "owner", "accountant"],
+  gst_remittance: ["superuser", "owner", "accountant"],
+  backups: ["superuser", "owner"],
+  company_settings: ["superuser", "owner"],
+  members: ["superuser", "owner"],
 }
 
 export function normalizePortalRole(role: string | null | undefined): PortalRole {
-  if (role === "staff" || role === "accountant") return role
+  if (role === "superuser" || role === "staff" || role === "accountant") return role
   return "owner"
 }
 
 export function canPerform(role: string | null | undefined, action: PortalAction) {
-  return ACTION_ROLES[action].includes(normalizePortalRole(role))
+  const normalized = normalizePortalRole(role)
+  if (normalized === "superuser") return true
+  return ACTION_ROLES[action].includes(normalized)
 }
 
 export function assertCanPerform(role: string | null | undefined, action: PortalAction) {
   if (!canPerform(role, action)) {
     throw new Error("You do not have permission to do that in the Formulated Tax Portal.")
+  }
+}
+
+export function roleLabel(role: string | null | undefined) {
+  switch (normalizePortalRole(role)) {
+    case "superuser":
+      return "Superuser"
+    case "staff":
+      return "Staff"
+    case "accountant":
+      return "Accountant"
+    default:
+      return "Owner"
   }
 }

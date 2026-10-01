@@ -31,7 +31,7 @@ export async function updateMemberRoleAction(formData: FormData) {
   const memberId = String(formData.get("memberId") || "")
   const role = String(formData.get("role") || "staff")
   if (!PORTAL_ROLES.includes(role as (typeof PORTAL_ROLES)[number])) {
-    throw new Error("Choose owner, staff, or accountant")
+    throw new Error("Choose superuser, owner, staff, or accountant")
   }
   await prisma.organizationMember.updateMany({
     where: { id: memberId, organizationId: organization.id },

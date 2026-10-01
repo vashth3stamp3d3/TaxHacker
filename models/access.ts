@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth"
 import { assertCanPerform, normalizePortalRole, type PortalAction, type PortalRole } from "@/lib/portal-access"
 import { prisma } from "@/lib/db"
+import { dateForNewPosting, getWorkingYear, type WorkingYear } from "@/lib/working-year"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { Organization, User } from "@/prisma/client"
 
@@ -8,6 +9,8 @@ export type PortalContext = {
   user: User
   organization: Organization
   role: PortalRole
+  workingYear: WorkingYear
+  postedAt: Date
 }
 
 export async function requirePortalContext(action: PortalAction): Promise<PortalContext> {
@@ -18,7 +21,8 @@ export async function requirePortalContext(action: PortalAction): Promise<Portal
   })
   const role = normalizePortalRole(membership?.role)
   assertCanPerform(role, action)
-  return { user, organization, role }
+  const workingYear = await getWorkingYear()
+  return { user, organization, role, workingYear, postedAt: dateForNewPosting(workingYear) }
 }
 
 export async function getOrganizationMembers(organizationId: string) {

@@ -2,8 +2,11 @@ import { PortalPageHeader } from "@/components/portal/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import { formatMoney, getBalanceSheet, getCashFlowStatement, getGstSummary, getIncomeStatement } from "@/models/accounting"
-import { ensureActiveOrganization } from "@/models/organizations"
+import { ensureActiveOrganization, getLedgerBalanceSnapshots } from "@/models/organizations"
+import { FiledT2GifiCard } from "@/components/portal/filed-t2-gifi"
+import { LedgerSnapshotsCard } from "@/components/portal/ledger-snapshots"
 import Link from "next/link"
 
 export const metadata = {
@@ -13,11 +16,13 @@ export const metadata = {
 export default async function ReportsPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const [income, balance, cashFlow, gst] = await Promise.all([
-    getIncomeStatement(organization.id),
-    getBalanceSheet(organization.id),
-    getCashFlowStatement(organization.id),
-    getGstSummary(organization.id),
+  const year = await getWorkingYear()
+  const [income, balance, cashFlow, gst, snapshots] = await Promise.all([
+    getIncomeStatement(organization.id, year.year),
+    getBalanceSheet(organization.id, year.year),
+    getCashFlowStatement(organization.id, year.year),
+    getGstSummary(organization.id, { from: year.startsAt, to: year.endsAt }),
+    getLedgerBalanceSnapshots(organization.id, year.year),
   ])
 
   const reports = [
@@ -26,7 +31,7 @@ export default async function ReportsPage() {
     ["Balance Sheet", "/reports/balance-sheet", "Assets, liabilities, and equity."],
     ["Cash Flow", "/reports/cash-flow", "Cash movement summary from cash accounts."],
     ["GST Summary", "/taxes/gst", "GST collected, ITCs, and net remittance."],
-    ["T2 Worksheet", "/taxes/t2", "2025 corporate tax planning estimate from this fiscal year's books."],
+    ["T2 Worksheet", "/taxes/t2", `${year.year} corporate tax planning estimate from this fiscal year's books.`],
   ] as const
 
   return (
@@ -35,13 +40,17 @@ export default async function ReportsPage() {
         title="Reports"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
-        description="Statements and GST from the general ledger"
+        workingYear={year.year}
+        description="Statements and GST from the general ledger for the selected year"
         actions={
           <Button asChild variant="outline">
             <a href="/reports/trial-balance/export">Export trial balance</a>
           </Button>
         }
       />
+
+      <FiledT2GifiCard year={year.year} />
+      <LedgerSnapshotsCard snapshots={snapshots} year={year.year} />
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>

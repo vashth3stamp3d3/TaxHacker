@@ -269,6 +269,7 @@ model Organization {
   accountantName           String?  @map("accountant_name")
   accountantEmail          String?  @map("accountant_email")
   ownerDisplayName         String?  @map("owner_display_name")
+  entityType               String   @default("canadian_corporation") @map("entity_type")
   address                  String?
   phone                    String?
   createdAt                DateTime @default(now()) @map("created_at")
@@ -323,6 +324,22 @@ model AccountingPeriod {
   @@index([organizationId])
   @@index([fiscalYearId])
   @@map("accounting_periods")
+}
+
+model LedgerBalanceSnapshot {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  year           Int
+  kind           String
+  label          String
+  sourceFile     String   @map("source_file")
+  asOf           DateTime @map("as_of")
+  lines          Json
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([organizationId, year, kind])
+  @@index([organizationId, year, kind])
+  @@map("ledger_balance_snapshots")
 }
 
 model NumberSequence {

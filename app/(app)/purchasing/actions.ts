@@ -14,7 +14,7 @@ function revalidatePurchasing() {
 }
 
 export async function createVendorBillAction(formData: FormData) {
-  const { user, organization } = await requirePortalContext("shop_write")
+  const { user, organization, postedAt } = await requirePortalContext("shop_write")
   await createVendorBillWithPosting({
     organizationId: organization.id,
     createdById: user.id,
@@ -22,12 +22,13 @@ export async function createVendorBillAction(formData: FormData) {
     goodsReceiptId: String(formData.get("goodsReceiptId") || "") || undefined,
     description: String(formData.get("description") || "Vendor bill"),
     taxableAmount: Math.round(Number(formData.get("amount") || 0) * 100),
+    postedAt,
   })
   revalidatePurchasing()
 }
 
 export async function createVendorPaymentAction(formData: FormData) {
-  const { user, organization } = await requirePortalContext("shop_write")
+  const { user, organization, postedAt } = await requirePortalContext("shop_write")
   await createVendorPaymentWithPosting({
     organizationId: organization.id,
     createdById: user.id,
@@ -35,6 +36,7 @@ export async function createVendorPaymentAction(formData: FormData) {
     vendorBillId: String(formData.get("vendorBillId") || "") || undefined,
     amount: Math.round(Number(formData.get("amount") || 0) * 100),
     memo: String(formData.get("memo") || "Vendor payment"),
+    postedAt,
   })
   revalidatePurchasing()
 }
@@ -60,12 +62,13 @@ export async function createPurchaseOrderAction(formData: FormData) {
 }
 
 export async function receivePurchaseOrderAction(formData: FormData) {
-  const { user, organization } = await requirePortalContext("shop_write")
+  const { user, organization, postedAt } = await requirePortalContext("shop_write")
   await receivePurchaseOrder({
     organizationId: organization.id,
     purchaseOrderId: String(formData.get("purchaseOrderId") || ""),
     warehouseId: String(formData.get("warehouseId") || ""),
     createdById: user.id,
+    postedAt,
   })
   revalidatePurchasing()
 }

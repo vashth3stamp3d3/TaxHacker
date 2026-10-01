@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import { formatMoney } from "@/models/accounting"
 import { getCustomer, getOpenAr } from "@/models/commerce"
 import { ensureActiveOrganization } from "@/models/organizations"
@@ -15,9 +16,10 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const { id } = await params
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
+  const year = await getWorkingYear()
   const customer = await getCustomer(organization.id, id)
   if (!customer) notFound()
-  const invoices = await getOpenAr(organization.id, customer.id)
+  const invoices = await getOpenAr(organization.id, customer.id, year.year)
 
   return (
     <div className="flex w-full max-w-5xl flex-col gap-5 self-center p-5">
@@ -25,6 +27,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         title={customer.name}
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
+        workingYear={year.year}
         description={`${customer.code} · ${customer.paymentTerms}`}
         entityType="customer"
         entityId={customer.id}

@@ -7,9 +7,10 @@ import { Toaster } from "@/components/ui/sonner"
 import { TaxAdvisorChat } from "@/components/tax-advisor/tax-advisor-chat"
 import { getCurrentUser, isSubscriptionExpired } from "@/lib/auth"
 import config from "@/lib/config"
+import { getWorkingYear, isFiledWorkingYear, WORKING_YEARS } from "@/lib/working-year"
 import { getApps } from "@/app/(app)/apps/common"
 import { getUnsortedFilesCount } from "@/models/files"
-import { ensureActiveOrganization } from "@/models/organizations"
+import { ensureActiveOrganization, getWorkingFiscalYears } from "@/models/organizations"
 import type { Metadata, Viewport } from "next"
 import "../globals.css"
 import { NotificationProvider } from "./context"
@@ -35,6 +36,8 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
+  const workingYear = await getWorkingYear()
+  const fiscalYears = await getWorkingFiscalYears(organization.id)
   const [unsortedFilesCount, apps] = await Promise.all([getUnsortedFilesCount(user.id, organization.id), getApps()])
 
   const userProfile = {
@@ -58,6 +61,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             unsortedFilesCount={unsortedFilesCount}
             isSelfHosted={config.selfHosted.isEnabled}
             organizationName={organization.name}
+            workingYear={workingYear.year}
+            workingYears={WORKING_YEARS.map((year) => ({
+              year,
+              isClosed: fiscalYears.find((row) => row.name === String(year))?.isClosed ?? false,
+              isFiled: isFiledWorkingYear(year),
+            }))}
             apps={apps.map((app) => ({
               id: app.id,
               name: app.manifest.name,

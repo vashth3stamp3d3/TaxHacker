@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import { formatMoney } from "@/models/accounting"
 import { getInventoryMovements, getItems, getStockBalances, getWarehouses } from "@/models/inventory"
 import { ensureActiveOrganization } from "@/models/organizations"
@@ -17,11 +18,12 @@ export const metadata = {
 export default async function InventoryPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
+  const year = await getWorkingYear()
   const [items, warehouses, balances, movements] = await Promise.all([
     getItems(organization.id),
     getWarehouses(organization.id),
     getStockBalances(organization.id),
-    getInventoryMovements(organization.id),
+    getInventoryMovements(organization.id, year.year),
   ])
   const defaultWarehouse = warehouses[0]
 
@@ -31,6 +33,7 @@ export default async function InventoryPage() {
         title="Inventory"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
+        workingYear={year.year}
         description="Weighted-average costing; receipts credit GRNI until the vendor bill posts"
       />
 

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear, isoDateInput } from "@/lib/working-year"
 import { formatMoney, getJournalEntries, getLedgerAccounts } from "@/models/accounting"
 import { ensureActiveOrganization } from "@/models/organizations"
 
@@ -16,7 +17,11 @@ export const metadata = {
 export default async function JournalEntriesPage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const [accounts, entries] = await Promise.all([getLedgerAccounts(organization.id), getJournalEntries(organization.id)])
+  const year = await getWorkingYear()
+  const [accounts, entries] = await Promise.all([
+    getLedgerAccounts(organization.id),
+    getJournalEntries(organization.id, year.year),
+  ])
 
   async function createAction(formData: FormData) {
     "use server"
@@ -29,6 +34,7 @@ export default async function JournalEntriesPage() {
         title="Journal entries"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
+        workingYear={year.year}
         description="Post balanced debits and credits into the general ledger"
       />
 
@@ -45,7 +51,7 @@ export default async function JournalEntriesPage() {
             </div>
             <div>
               <Label htmlFor="postedAt">Date</Label>
-              <Input id="postedAt" name="postedAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+              <Input id="postedAt" name="postedAt" type="date" defaultValue={isoDateInput(year)} />
             </div>
             <div>
               <Label htmlFor="amount">Amount</Label>
@@ -83,7 +89,7 @@ export default async function JournalEntriesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Recent entries</CardTitle>
-          <CardDescription>Latest 100 posted entries.</CardDescription>
+          <CardDescription>Latest 100 posted entries in {year.year}.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>

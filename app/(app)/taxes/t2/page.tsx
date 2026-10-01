@@ -4,6 +4,7 @@ import {
   deleteCustomT2AdjustmentAction,
   saveT2AdjustmentsAction,
 } from "@/app/(app)/taxes/t2/actions"
+import { FiledT2GifiCard } from "@/components/portal/filed-t2-gifi"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getCurrentUser } from "@/lib/auth"
 import { centsToDollarInput, formatCents, formatUtcDate } from "@/lib/tax/t2-worksheet"
+import { WORKING_YEARS, getWorkingYear } from "@/lib/working-year"
 import { formatMoney } from "@/models/accounting"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { getT2PageData } from "@/models/t2"
@@ -22,7 +24,7 @@ export const metadata = {
 
 export const dynamic = "force-dynamic"
 
-const YEAR_CHOICES = [2024, 2025, 2026, 2027]
+const YEAR_CHOICES = [...WORKING_YEARS]
 
 export default async function T2WorksheetPage({
   searchParams,
@@ -32,7 +34,8 @@ export default async function T2WorksheetPage({
   const params = await searchParams
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const { year, worksheet, accounts, entries } = await getT2PageData(organization.id, params.year)
+  const workingYear = await getWorkingYear()
+  const { year, worksheet, accounts, entries } = await getT2PageData(organization.id, params.year ?? workingYear.year)
   const additions = worksheet.adjustments.filter((row) => row.section === "schedule1_addition")
   const deductions = worksheet.adjustments.filter((row) => row.section === "schedule1_deduction")
   const taxableDeductions = worksheet.adjustments.filter((row) => row.section === "taxable_income_deduction")
@@ -65,9 +68,17 @@ export default async function T2WorksheetPage({
       </div>
 
       <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-        <p className="font-semibold">Planning estimate, not a filed return.</p>
-        <p>{worksheet.disclaimer}</p>
+        <p className="font-semibold">
+          {year === 2024 ? "2024 book income is the filed T2 GIFI." : "Planning estimate, not a filed return."}
+        </p>
+        <p>
+          {year === 2024
+            ? "Schedule 125, Schedule 100, and Schedule 8 from the 2024 T2 are on the books. Book amortization $4,183 was added back and class 8 CCA $4,183 was deducted, so taxable income is $11,045. Filed tax is Part I $993 and Alberta $221."
+            : worksheet.disclaimer}
+        </p>
       </div>
+
+      <FiledT2GifiCard year={year} />
 
       {savedMessage ? <div className="rounded-lg border bg-muted px-4 py-3 text-sm">{savedMessage}</div> : null}
       {params.error ? <div className="rounded-lg border border-destructive px-4 py-3 text-sm text-destructive">{params.error}</div> : null}

@@ -8,6 +8,7 @@ export function PortalPageHeader({
   gstNumber,
   entityType,
   entityId,
+  workingYear,
   actions,
 }: {
   title: string
@@ -16,6 +17,7 @@ export function PortalPageHeader({
   gstNumber?: string | null
   entityType?: string
   entityId?: string
+  workingYear?: number
   actions?: ReactNode
 }) {
   return (
@@ -23,12 +25,21 @@ export function PortalPageHeader({
       className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"
       data-entity-type={entityType}
       data-entity-id={entityId}
+      data-working-year={workingYear}
     >
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Formulated Tax Portal</p>
         <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
         <p className="text-muted-foreground">
-          {[organizationName, gstNumber ? `GST ${gstNumber}` : null, description].filter(Boolean).join(" · ")}
+          {[
+            organizationName,
+            "Canadian corporation",
+            workingYear ? `${workingYear} books` : null,
+            gstNumber ? `GST ${gstNumber}` : null,
+            description,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}

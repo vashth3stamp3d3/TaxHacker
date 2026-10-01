@@ -20,6 +20,14 @@ describe("portal roles", () => {
     expect(canPerform("accountant", "inbox_review")).toBe(true)
   })
 
+  it("lets superusers do every portal action", () => {
+    expect(canPerform("superuser", "backups")).toBe(true)
+    expect(canPerform("superuser", "gst_remittance")).toBe(true)
+    expect(canPerform("superuser", "inventory_consume")).toBe(true)
+    expect(canPerform("superuser", "members")).toBe(true)
+    expect(normalizePortalRole("superuser")).toBe("superuser")
+  })
+
   it("reserves backups and company settings for owners", () => {
     expect(canPerform("owner", "backups")).toBe(true)
     expect(canPerform("accountant", "backups")).toBe(false)

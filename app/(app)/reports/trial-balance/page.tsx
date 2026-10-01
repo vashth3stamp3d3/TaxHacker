@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { PortalPageHeader } from "@/components/portal/page-header"
 import { getCurrentUser } from "@/lib/auth"
+import { getWorkingYear } from "@/lib/working-year"
 import { getTrialBalance } from "@/models/accounting"
 import { ensureActiveOrganization } from "@/models/organizations"
 import { AccountBalanceTable } from "../_components"
@@ -13,7 +14,8 @@ export const metadata = {
 export default async function TrialBalancePage() {
   const user = await getCurrentUser()
   const organization = await ensureActiveOrganization(user)
-  const balances = await getTrialBalance(organization.id)
+  const year = await getWorkingYear()
+  const balances = await getTrialBalance(organization.id, year.year)
 
   return (
     <div className="flex flex-col gap-5 p-5 w-full max-w-7xl self-center">
@@ -21,7 +23,8 @@ export default async function TrialBalancePage() {
         title="Trial balance"
         organizationName={organization.name}
         gstNumber={organization.gstHstRegistrationNumber}
-        description="All ledger account debits, credits, and normal balances"
+        workingYear={year.year}
+        description="All ledger account debits, credits, and normal balances through year end"
         actions={
           <Button asChild variant="outline">
             <a href="/reports/trial-balance/export">Export CSV</a>
