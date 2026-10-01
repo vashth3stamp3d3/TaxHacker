@@ -8,9 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # ── Dependencies (cached unless package.json or prisma schema changes) ──
 FROM base AS deps
-RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends openssl
+RUN apt-get update && apt-get install -y --no-install-recommends openssl
 WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
@@ -19,14 +17,11 @@ COPY prisma ./prisma/
 # by `prisma generate` in the build stage below is a devDependency; the
 # runtime stage never sees this override since it starts fresh `FROM base`).
 ENV NODE_ENV=development
-RUN --mount=type=cache,id=npm,target=/root/.npm \
-    npm ci
+RUN npm ci
 
 # ── Build ──
 FROM base AS builder
-RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends openssl
+RUN apt-get update && apt-get install -y --no-install-recommends openssl
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
@@ -44,9 +39,7 @@ RUN npm run build
 
 # ── Runtime ──
 FROM base AS runner
-RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     cron \
     ghostscript \
