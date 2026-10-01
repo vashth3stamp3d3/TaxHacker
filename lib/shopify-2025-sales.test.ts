@@ -4,6 +4,7 @@ import {
   shopify2025Balances,
   shopify2025JournalLines,
   shopify2025OperatingRevenueCents,
+  shopify2025SalesCashCents,
 } from "./shopify-2025-sales"
 
 describe("Shopify 2025 sales", () => {
@@ -15,11 +16,19 @@ describe("Shopify 2025 sales", () => {
     )
   })
 
-  it("books revenue, shipping, discounts, reversals, and GST as a balanced entry", () => {
+  it("books print sales and GST, and treats Shopify shipping as expense", () => {
     const totals = shopify2025Balances()
     expect(totals.balanced).toBe(true)
     expect(totals.revenue).toBe(shopify2025OperatingRevenueCents())
-    expect(totals.revenue).toBe(13_968_702)
+    expect(totals.revenue).toBe(13_527_484)
+    expect(totals.shippingExpense).toBe(SHOPIFY_2025_SALES.shippingChargesCents)
+    expect(shopify2025SalesCashCents()).toBe(
+      SHOPIFY_2025_SALES.totalSalesCents - SHOPIFY_2025_SALES.shippingChargesCents
+    )
+
+    const shipping = shopify2025JournalLines().find((line) => line.accountCode === "5040")
+    expect(shipping?.debitCents).toBe(SHOPIFY_2025_SALES.shippingChargesCents)
+    expect(shopify2025JournalLines().some((line) => line.accountCode === "4300")).toBe(false)
 
     const gst = shopify2025JournalLines().find((line) => line.accountCode === "2100")
     expect(gst?.creditCents).toBe(SHOPIFY_2025_SALES.taxesCents)
